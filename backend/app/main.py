@@ -4,9 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.api.v1.routes import router
+
+# StaticFiles validates its directory during application construction, before the
+# lifespan hook runs. Create the configured storage location first for fresh
+# containers and ephemeral Railway filesystems.
+settings.storage_root.mkdir(parents=True,exist_ok=True)
+
 @asynccontextmanager
 async def lifespan(app:FastAPI):
- settings.storage_root.mkdir(parents=True,exist_ok=True); yield
+ yield
 app=FastAPI(title="EvoThermGuard",version="0.1.0",lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=[settings.frontend_url],allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
 app.include_router(router,prefix="/api/v1")
