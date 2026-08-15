@@ -460,6 +460,15 @@ function Auth({
         </div>
       </section>
       <section className="auth-form-side">
+        <div className="auth-mobile-intro">
+          <Brand />
+          <div className="auth-mobile-hud" aria-hidden="true">
+            <i />
+            <i />
+            <span><I n="equipment" /></span>
+          </div>
+          <span className="eyebrow">EVOTHERMGUARD ACCESS PORTAL</span>
+        </div>
         <form className="auth-card rescue" onSubmit={submit}>
           <span className="eyebrow">
             {register ? "NEW OPERATOR PROFILE" : "SECURE OPERATOR ACCESS"}
