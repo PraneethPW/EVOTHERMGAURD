@@ -1,0 +1,11 @@
+.git
+.env
+backend/.env
+backend/.pytest_cache
+backend/__pycache__
+backend/**/__pycache__
+backend/storage
+backend/evothermguard.db
+frontend/node_modules
+frontend/dist
+**/*.pyc
