@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+venv/
+backend/storage/*
+!backend/storage/.gitkeep
+backend/models/checkpoints/*
+*.pt
+*.pth
+.DS_Store
+.vscode/
+.idea/

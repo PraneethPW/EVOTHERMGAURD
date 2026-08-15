@@ -1,0 +1,12 @@
+services:
+  backend:
+    build: ./backend
+    env_file: .env
+    ports: ["8000:8000"]
+    volumes: ["./backend/storage:/app/storage"]
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_URL: http://localhost:8000/api/v1
+    ports: ["5173:80"]
+    depends_on: [backend]

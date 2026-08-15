@@ -1,0 +1,102 @@
+/* 3D thermal asset overlay for the landing engine visual. */
+.engine-rgb {
+  background: #04080b url('/assets/thermal-transformer-3d.png') center / cover no-repeat;
+}
+
+.engine-rgb .technical-asset {
+  display: none;
+}
+
+.engine-thermal {
+  display: none;
+}
+
+.engine-thermal .technical-asset {
+  display: none;
+}
+
+.engine-thermal .hotspot {
+  opacity: .42;
+}
+
+@media (max-width: 760px) {
+  .engine-rgb { background-position: 61% center; }
+}
+
+/* Equipment cards use the same verified project asset rather than an external image URL. */
+.equipment-card .asset-visual,
+.asset-identity .asset-visual {
+  background:
+    linear-gradient(135deg, rgba(0, 229, 255, .16), rgba(255, 77, 0, .12)),
+    url('/assets/thermal-transformer-3d.png') center / cover no-repeat;
+  color: #f4f7fa;
+  overflow: hidden;
+}
+
+.equipment-card .asset-visual .icon,
+.asset-identity .asset-visual .icon {
+  position: relative;
+  z-index: 1;
+  padding: .22em;
+  border-radius: 50%;
+  background: rgba(3, 7, 11, .74);
+  backdrop-filter: blur(5px);
+}
+
+.upload-zone .generate-demo {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 1px solid rgba(0, 229, 255, .38);
+  border-radius: 9px;
+  background: linear-gradient(110deg, rgba(0, 229, 255, .11), rgba(255, 77, 0, .13));
+  box-shadow: none;
+  color: #d9faff;
+  font-size: 11px;
+}
+
+.upload-zone.thermal .generate-demo {
+  border-color: rgba(255, 106, 0, .5);
+}
+
+.upload-zone .generate-demo:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.generated-note {
+  margin-top: 8px;
+  color: #8192a0;
+  font: 8px 'DM Mono', monospace;
+  letter-spacing: .4px;
+}
+
+.button-loader {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255, 255, 255, .38);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: buttonSpin .7s linear infinite;
+}
+
+@keyframes buttonSpin {
+  to { transform: rotate(360deg); }
+}
+
+button.button-feedback {
+  transform: translateY(1px) scale(.985);
+  filter: brightness(1.15);
+}
+
+button.button-feedback::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  margin-left: 7px;
+  display: inline-block;
+  vertical-align: -1px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: buttonSpin .55s linear infinite;
+}
