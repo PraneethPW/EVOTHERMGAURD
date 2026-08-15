@@ -14,7 +14,7 @@ settings.storage_root.mkdir(parents=True,exist_ok=True)
 async def lifespan(app:FastAPI):
  yield
 app=FastAPI(title="EvoThermGuard",version="0.1.0",lifespan=lifespan)
-app.add_middleware(CORSMiddleware,allow_origins=[settings.frontend_url],allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
+app.add_middleware(CORSMiddleware,allow_origins=settings.allowed_origins,allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
 app.include_router(router,prefix="/api/v1")
 app.mount('/evidence',StaticFiles(directory=settings.storage_root),name='evidence')
 @app.get('/health')
