@@ -49,6 +49,8 @@ const glyph: any = {
   temp: "♨",
   weather: "☼",
   model: "◈",
+  eye: "◉",
+  eyeOff: "⊘",
 };
 function I({ n }: { n: string }) {
   return <span className="icon">{glyph[n] || "•"}</span>;
@@ -413,6 +415,7 @@ function Auth({
   const nav = useNavigate();
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -498,14 +501,25 @@ function Auth({
             />
           </Field>
           <Field l="Password">
-            <input
-              name="password"
-              type="password"
-              minLength={8}
-              maxLength={128}
-              required
-              placeholder="8+ secure characters"
-            />
+            <div className="password-control">
+              <input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                minLength={8}
+                maxLength={128}
+                required
+                placeholder="8+ secure characters"
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                <I n={showPassword ? "eyeOff" : "eye"} />
+              </button>
+            </div>
           </Field>
           {err && <div className="error-panel">△ {err}</div>}
           <Btn type="submit" disabled={busy}>
