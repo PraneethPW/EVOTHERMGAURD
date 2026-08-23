@@ -1,0 +1,711 @@
+/* Immersive motion layer — extends the existing thermal cockpit without changing its palette. */
+.thermal-bg {
+  perspective: 900px;
+  isolation: isolate;
+}
+.cockpit-depth {
+  position: absolute;
+  inset: -12%;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  opacity: 0.78;
+}
+.depth-horizon {
+  position: absolute;
+  left: -18%;
+  right: -18%;
+  bottom: -32%;
+  height: 78%;
+  transform: rotateX(67deg);
+  transform-origin: center top;
+  background-image:
+    linear-gradient(#ff5a0017 1px, transparent 1px),
+    linear-gradient(90deg, #22e6f216 1px, transparent 1px);
+  background-size: 64px 38px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 2%,
+    #000 36%,
+    transparent 96%
+  );
+  animation: horizonDrive 8s linear infinite;
+}
+.depth-horizon:after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -8%;
+  width: 1px;
+  height: 110%;
+  background: linear-gradient(transparent, #ff6a006b, transparent);
+  box-shadow:
+    -260px 0 #22e6f21c,
+    260px 0 #ff5a001c;
+}
+.depth-rails {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+.depth-rails i {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: 1px;
+  height: 72%;
+  background: linear-gradient(#22e6f200, #22e6f25d, #ff5a0000);
+  transform-origin: top;
+}
+.depth-rails i:nth-child(1) {
+  transform: rotate(63deg);
+}
+.depth-rails i:nth-child(2) {
+  transform: rotate(31deg);
+}
+.depth-rails i:nth-child(3) {
+  transform: rotate(0);
+}
+.depth-rails i:nth-child(4) {
+  transform: rotate(-31deg);
+}
+.depth-rails i:nth-child(5) {
+  transform: rotate(-63deg);
+}
+.radar-scope {
+  position: absolute;
+  width: min(38vw, 560px);
+  aspect-ratio: 1;
+  right: -12%;
+  top: 3%;
+  border: 1px solid #22e6f21c;
+  border-radius: 50%;
+  animation: scopeFloat 11s ease-in-out infinite alternate;
+}
+.radar-scope:before,
+.radar-scope:after,
+.radar-scope > i {
+  content: "";
+  position: absolute;
+  inset: 16%;
+  border: 1px solid #22e6f219;
+  border-radius: 50%;
+}
+.radar-scope:after {
+  inset: 33%;
+  border-color: #ff5a0025;
+}
+.radar-scope > i:nth-child(1) {
+  inset: 0;
+  border: 0;
+  background: conic-gradient(
+    from 10deg,
+    transparent 0 80%,
+    #22e6f21f 90%,
+    transparent
+  );
+  animation: radarSpin 7s linear infinite;
+}
+.radar-scope > i:nth-child(2) {
+  inset: 49%;
+  border: 0;
+  background: #ff7a2e;
+  box-shadow: 0 0 18px #ff5a00;
+}
+.radar-scope > span {
+  position: absolute;
+  left: 31%;
+  top: 28%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #22e6f2;
+  box-shadow: 0 0 14px #22e6f2;
+  animation: radarPing 2.6s ease-out infinite;
+}
+.telemetry-orbit {
+  position: absolute;
+  width: 250px;
+  height: 250px;
+  border: 1px dashed #ff6a0026;
+  border-radius: 50%;
+  animation: orbitDrift 17s linear infinite;
+}
+.telemetry-orbit > i {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 1px solid #ff8c4b;
+  background: #06090d;
+  border-radius: 50%;
+  top: -4px;
+  left: 50%;
+  box-shadow: 0 0 16px #ff5a00;
+}
+.telemetry-orbit > span {
+  position: absolute;
+  right: -28px;
+  top: 50%;
+  font: 7px "DM Mono";
+  letter-spacing: 1.2px;
+  color: #ff8b5666;
+}
+.orbit-one {
+  left: -100px;
+  top: 18%;
+}
+.orbit-two {
+  width: 160px;
+  height: 160px;
+  right: 18%;
+  bottom: 4%;
+  border-color: #22e6f228;
+  animation-direction: reverse;
+  animation-duration: 12s;
+}
+.orbit-two > i {
+  border-color: #22e6f2;
+  box-shadow: 0 0 16px #22e6f2;
+}
+.orbit-two > span {
+  color: #54dce966;
+}
+.cockpit-particles i {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #dffcff;
+  box-shadow: 0 0 8px #22e6f2;
+  animation: particleRise 9s linear infinite;
+}
+.cockpit-particles i:nth-child(3n) {
+  background: #ff7a2e;
+  box-shadow: 0 0 8px #ff5a00;
+}
+.cockpit-particles i:nth-child(1) {
+  left: 4%;
+  top: 88%;
+  animation-delay: -1s;
+}
+.cockpit-particles i:nth-child(2) {
+  left: 11%;
+  top: 55%;
+  animation-delay: -6s;
+}
+.cockpit-particles i:nth-child(3) {
+  left: 18%;
+  top: 78%;
+  animation-delay: -3s;
+}
+.cockpit-particles i:nth-child(4) {
+  left: 27%;
+  top: 93%;
+  animation-delay: -8s;
+}
+.cockpit-particles i:nth-child(5) {
+  left: 34%;
+  top: 66%;
+  animation-delay: -4s;
+}
+.cockpit-particles i:nth-child(6) {
+  left: 41%;
+  top: 85%;
+  animation-delay: -2s;
+}
+.cockpit-particles i:nth-child(7) {
+  left: 48%;
+  top: 58%;
+  animation-delay: -7s;
+}
+.cockpit-particles i:nth-child(8) {
+  left: 55%;
+  top: 91%;
+  animation-delay: -5s;
+}
+.cockpit-particles i:nth-child(9) {
+  left: 62%;
+  top: 72%;
+  animation-delay: -9s;
+}
+.cockpit-particles i:nth-child(10) {
+  left: 69%;
+  top: 82%;
+  animation-delay: -3.5s;
+}
+.cockpit-particles i:nth-child(11) {
+  left: 76%;
+  top: 64%;
+  animation-delay: -6.5s;
+}
+.cockpit-particles i:nth-child(12) {
+  left: 83%;
+  top: 90%;
+  animation-delay: -1.5s;
+}
+.cockpit-particles i:nth-child(13) {
+  left: 90%;
+  top: 70%;
+  animation-delay: -5.5s;
+}
+.cockpit-particles i:nth-child(14) {
+  left: 96%;
+  top: 87%;
+  animation-delay: -7.5s;
+}
+.cockpit-particles i:nth-child(15) {
+  left: 23%;
+  top: 48%;
+  animation-delay: -4.5s;
+}
+.cockpit-particles i:nth-child(16) {
+  left: 58%;
+  top: 42%;
+  animation-delay: -2.5s;
+}
+.cockpit-particles i:nth-child(17) {
+  left: 72%;
+  top: 51%;
+  animation-delay: -8.5s;
+}
+.cockpit-particles i:nth-child(18) {
+  left: 39%;
+  top: 38%;
+  animation-delay: -0.5s;
+}
+.cockpit-scan-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 140px;
+  top: -160px;
+  background: linear-gradient(
+    transparent,
+    #22e6f207,
+    #22e6f21a,
+    #22e6f207,
+    transparent
+  );
+  border-bottom: 1px solid #22e6f22e;
+  animation: cockpitScan 9s linear infinite;
+}
+.page-heading .eyebrow,
+.section-title > span,
+.hero-copy .eyebrow {
+  display: inline-block;
+  clip-path: inset(0 100% 0 0);
+  animation: telemetryReveal 0.7s steps(12, end) 0.1s forwards;
+}
+.page-heading h1,
+.hero-copy h1,
+.auth-card h2 {
+  transform-origin: left center;
+  animation: titleIgnition 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.page-heading h1:after,
+.section-title h2:after {
+  content: "";
+  display: inline-block;
+  width: 18px;
+  height: 2px;
+  margin-left: 9px;
+  vertical-align: 0.18em;
+  background: #ff6500;
+  box-shadow: 0 0 12px #ff5a00;
+  animation: cursorPulse 1s steps(2, end) infinite;
+}
+.page-heading p,
+.hero-copy > p {
+  animation: copySignal 0.8s ease 0.18s both;
+}
+.glass-card {
+  transform-style: preserve-3d;
+}
+.glass-card:after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  left: -45%;
+  top: -2px;
+  width: 36%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #22e6f2, #fff, transparent);
+  opacity: 0.25;
+  animation: panelSignal 8s linear infinite;
+}
+.glass-card:hover:after {
+  height: 2px;
+  opacity: 0.8;
+  animation-duration: 1.7s;
+}
+.sidebar nav a:before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  background: #ff6500;
+  box-shadow: 0 0 12px #ff6500;
+  transition: 0.25s;
+}
+.sidebar nav a:hover:before,
+.sidebar nav a.active:before {
+  height: 55%;
+  top: 22%;
+}
+.topbar:after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #22e6f2,
+    #ff6500,
+    transparent
+  );
+  background-size: 220% 100%;
+  animation: topbarSignal 4s linear infinite;
+}
+.topbar {
+  position: relative;
+  overflow: hidden;
+}
+.metric b,
+.risk-ring > span,
+.environment-card > b {
+  animation: readoutPulse 3.4s ease-in-out infinite;
+}
+.evidence-viewer:before,
+.engine-visual:after,
+.story-screen:after {
+  content: "";
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  inset: 0;
+  background: linear-gradient(
+    transparent 0 48%,
+    #22e6f214 50%,
+    transparent 52%
+  );
+  background-size: 100% 16px;
+  animation: evidenceScan 6s linear infinite;
+}
+.evidence-viewer {
+  position: relative;
+}
+.engine-visual,
+.story-screen {
+  transform: translateZ(0);
+}
+.cockpit-loader {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  flex: 0 0 auto;
+}
+.cockpit-loader.compact {
+  width: 22px;
+  height: 22px;
+}
+.loader-ring {
+  position: absolute;
+  inset: 4px;
+  border: 1px solid #22e6f2;
+  border-radius: 50%;
+  border-left-color: transparent;
+  border-bottom-color: #22e6f233;
+  animation: loaderOrbit 1.15s linear infinite;
+}
+.loader-ring.inner {
+  inset: 17px;
+  border-color: #ff6a00;
+  border-right-color: transparent;
+  animation-direction: reverse;
+  animation-duration: 0.72s;
+}
+.loader-crosshair:before,
+.loader-crosshair:after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 12%;
+  width: 1px;
+  height: 76%;
+  background: linear-gradient(transparent, #ffffff68, transparent);
+}
+.loader-crosshair:after {
+  transform: rotate(90deg);
+}
+.loader-sweep {
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  background: conic-gradient(transparent 0 74%, #22e6f226 88%, transparent);
+  animation: radarSpin 1.8s linear infinite;
+}
+.cockpit-loader > b {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff6a00;
+  box-shadow: 0 0 16px #ff5a00;
+  animation: coreThrob 0.8s ease-in-out infinite alternate;
+}
+.cockpit-loader.compact .loader-ring {
+  inset: 1px;
+}
+.cockpit-loader.compact .loader-ring.inner {
+  inset: 5px;
+}
+.cockpit-loader.compact .loader-crosshair,
+.cockpit-loader.compact .loader-sweep,
+.cockpit-loader.compact > b {
+  display: none;
+}
+.analysis-simulator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin: 5px auto 20px;
+  color: #66e7f2;
+  font: 9px "DM Mono";
+  letter-spacing: 1.5px;
+}
+.analysis-simulator > span {
+  animation: cursorPulse 1.2s steps(2, end) infinite;
+}
+.boot {
+  gap: 16px;
+}
+.boot-status {
+  font: 10px "DM Mono";
+  letter-spacing: 1.4px;
+  color: #a4b5c0;
+  animation: cursorPulse 1.1s steps(2, end) infinite;
+}
+.boot-telemetry {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font: 7px "DM Mono";
+  letter-spacing: 1px;
+  color: #627682;
+}
+.boot-telemetry i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #22e6f2;
+  box-shadow: 0 0 8px #22e6f2;
+  animation: coreThrob 0.8s infinite alternate;
+}
+.button-feedback:before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid #fff7;
+  border-radius: inherit;
+  animation: buttonShock 0.5s ease-out forwards;
+}
+@keyframes horizonDrive {
+  to {
+    background-position:
+      0 38px,
+      64px 0;
+  }
+}
+@keyframes radarSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes radarPing {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+@keyframes scopeFloat {
+  to {
+    transform: translate(-35px, 24px) rotate(8deg);
+  }
+}
+@keyframes orbitDrift {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes particleRise {
+  0% {
+    transform: translateY(80px) scale(0.5);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-520px) scale(1.8);
+    opacity: 0;
+  }
+}
+@keyframes cockpitScan {
+  to {
+    transform: translateY(calc(100vh + 260px));
+  }
+}
+@keyframes telemetryReveal {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes titleIgnition {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) skewX(-7deg);
+    filter: blur(8px);
+  }
+  70% {
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes copySignal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes cursorPulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+@keyframes panelSignal {
+  to {
+    left: 112%;
+  }
+}
+@keyframes topbarSignal {
+  to {
+    background-position: -220% 0;
+  }
+}
+@keyframes readoutPulse {
+  50% {
+    text-shadow: 0 0 18px #ff650055;
+  }
+}
+@keyframes evidenceScan {
+  to {
+    background-position: 0 160px;
+  }
+}
+@keyframes loaderOrbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes coreThrob {
+  to {
+    transform: scale(1.5);
+    opacity: 0.5;
+  }
+}
+@keyframes buttonShock {
+  to {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+}
+@media (max-width: 760px) {
+  .cockpit-depth {
+    opacity: 0.52;
+  }
+  .radar-scope {
+    width: 320px;
+    right: -45%;
+    top: 8%;
+  }
+  .telemetry-orbit {
+    display: none;
+  }
+  .cockpit-particles i:nth-child(n + 9) {
+    display: none;
+  }
+  .depth-horizon {
+    background-size: 46px 30px;
+  }
+  .glass-card:hover:after {
+    animation-duration: 8s;
+  }
+  .page-heading h1:after,
+  .section-title h2:after {
+    width: 12px;
+  }
+  .analysis-simulator {
+    flex-direction: column;
+  }
+  .cockpit-scan-beam {
+    animation-duration: 12s;
+  }
+}
+@media (hover: none) and (pointer: coarse) {
+  .glass-card:hover:after {
+    opacity: 0.25;
+  }
+  .sidebar nav a:hover:before {
+    height: 0;
+  }
+  .engine-visual:after,
+  .story-screen:after {
+    animation-duration: 9s;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cockpit-depth,
+  .cockpit-scan-beam,
+  .glass-card:after,
+  .evidence-viewer:before,
+  .engine-visual:after,
+  .story-screen:after {
+    display: none;
+  }
+  .page-heading .eyebrow,
+  .section-title > span,
+  .hero-copy .eyebrow {
+    clip-path: none;
+  }
+  .page-heading h1,
+  .hero-copy h1,
+  .auth-card h2,
+  .page-heading p,
+  .hero-copy > p {
+    animation: none;
+  }
+  .cockpit-loader * {
+    animation-duration: 2s !important;
+  }
+}

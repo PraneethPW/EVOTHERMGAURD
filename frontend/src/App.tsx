@@ -75,12 +75,55 @@ function Bg() {
   return (
     <div className="thermal-bg">
       <div className="grid-overlay" />
+      <div className="cockpit-depth" aria-hidden="true">
+        <div className="depth-horizon" />
+        <div className="depth-rails">
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+        </div>
+        <div className="radar-scope">
+          <i />
+          <i />
+          <span />
+        </div>
+        <div className="telemetry-orbit orbit-one">
+          <i />
+          <span>ETG / 01</span>
+        </div>
+        <div className="telemetry-orbit orbit-two">
+          <i />
+          <span>THERMAL</span>
+        </div>
+        <div className="cockpit-particles">
+          {Array.from({ length: 18 }, (_, i) => (
+            <i key={i} />
+          ))}
+        </div>
+        <div className="cockpit-scan-beam" />
+      </div>
       <div className="heat-bloom one" />
       <div className="heat-bloom two" />
       <div className="cool-bloom" />
       <div className="scan-lines" />
       <div className="noise" />
     </div>
+  );
+}
+function CockpitLoader({ compact = false }: { compact?: boolean }) {
+  return (
+    <span
+      className={`cockpit-loader ${compact ? "compact" : ""}`}
+      aria-hidden="true"
+    >
+      <i className="loader-ring outer" />
+      <i className="loader-ring inner" />
+      <i className="loader-crosshair" />
+      <i className="loader-sweep" />
+      <b />
+    </span>
   );
 }
 function Brand() {
@@ -157,7 +200,13 @@ function Btn({
       aria-busy={isLoading}
     >
       <i className="shine" />
-      {isLoading ? <><span className="button-loader" /> Working…</> : children}
+      {isLoading ? (
+        <>
+          <CockpitLoader compact /> Processing…
+        </>
+      ) : (
+        children
+      )}
     </motion.button>
   );
 }
@@ -468,7 +517,9 @@ function Auth({
           <div className="auth-mobile-hud" aria-hidden="true">
             <i />
             <i />
-            <span><I n="equipment" /></span>
+            <span>
+              <I n="equipment" />
+            </span>
           </div>
           <span className="eyebrow">EVOTHERMGUARD ACCESS PORTAL</span>
         </div>
@@ -991,8 +1042,14 @@ const PIPE = [
 
 function evidenceAssetFor(equipmentType: string) {
   const type = equipmentType.toLowerCase();
-  if (type.includes("switchgear") || type.includes("panel") || type.includes("breaker")) return "/assets/thermal-switchgear-3d.png";
-  if (type.includes("pump") || type.includes("compressor")) return "/assets/thermal-pump-3d.png";
+  if (
+    type.includes("switchgear") ||
+    type.includes("panel") ||
+    type.includes("breaker")
+  )
+    return "/assets/thermal-switchgear-3d.png";
+  if (type.includes("pump") || type.includes("compressor"))
+    return "/assets/thermal-pump-3d.png";
   if (type.includes("generator")) return "/assets/thermal-generator-3d.png";
   if (type.includes("motor")) return "/assets/thermal-motor-3d.png";
   return "/assets/thermal-transformer-3d.png";
@@ -1006,24 +1063,26 @@ async function demoEvidenceFile(
   source.src = evidenceAssetFor(asset.equipment_type);
   await new Promise<void>((resolve, reject) => {
     source.onload = () => resolve();
-    source.onerror = () => reject(new Error("The demo evidence asset could not be loaded."));
+    source.onerror = () =>
+      reject(new Error("The demo evidence asset could not be loaded."));
   });
   const canvas = document.createElement("canvas");
   canvas.width = 1280;
   canvas.height = 720;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Image generation is not available in this browser.");
+  if (!ctx)
+    throw new Error("Image generation is not available in this browser.");
   ctx.fillStyle = "#05090c";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
-  const heatX = 720 + (asset.equipment_name.length * 29) % 330;
-  const heatY = 240 + (asset.equipment_type.length * 23) % 250;
+  const heatX = 720 + ((asset.equipment_name.length * 29) % 330);
+  const heatY = 240 + ((asset.equipment_type.length * 23) % 250);
   if (kind === "thermal") {
     ctx.globalCompositeOperation = "screen";
     const heat = ctx.createRadialGradient(heatX, heatY, 12, heatX, heatY, 210);
     heat.addColorStop(0, "rgba(255, 245, 120, .98)");
-    heat.addColorStop(.22, "rgba(255, 110, 0, .8)");
-    heat.addColorStop(.55, "rgba(220, 35, 58, .36)");
+    heat.addColorStop(0.22, "rgba(255, 110, 0, .8)");
+    heat.addColorStop(0.55, "rgba(220, 35, 58, .36)");
     heat.addColorStop(1, "rgba(74, 19, 127, 0)");
     ctx.fillStyle = heat;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1035,11 +1094,23 @@ async function demoEvidenceFile(
   ctx.strokeRect(28, 28, 480, 70);
   ctx.fillStyle = "#f4f7fa";
   ctx.font = "500 18px monospace";
-  ctx.fillText(`AI DEMO / ${kind.toUpperCase()} / ${asset.equipment_type}`, 48, 72);
-  const blob = await new Promise<Blob>((resolve, reject) =>
-    canvas.toBlob((value) => (value ? resolve(value) : reject(new Error("Unable to create demo evidence."))), "image/png"),
+  ctx.fillText(
+    `AI DEMO / ${kind.toUpperCase()} / ${asset.equipment_type}`,
+    48,
+    72,
   );
-  const slug = (asset.asset_code || asset.equipment_name).replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (value) =>
+        value
+          ? resolve(value)
+          : reject(new Error("Unable to create demo evidence.")),
+      "image/png",
+    ),
+  );
+  const slug = (asset.asset_code || asset.equipment_name)
+    .replace(/[^a-z0-9]+/gi, "-")
+    .toLowerCase();
   return new File([blob], `ai-demo-${slug}-${kind}.png`, { type: "image/png" });
 }
 
@@ -1115,7 +1186,9 @@ function Inspect() {
       polling = setInterval(
         () =>
           api
-            .get(`/inspections/${id}/processing-status`, { params: { _fresh: Date.now() } })
+            .get(`/inspections/${id}/processing-status`, {
+              params: { _fresh: Date.now() },
+            })
             .then((r) => setStatus({ id, ...r.data })),
         150,
       );
@@ -1312,7 +1385,11 @@ function Upload({
         <I n="ai" />
         {generating ? "Generating evidence…" : "Generate AI demo evidence"}
       </button>
-      {!file && <small className="generated-note">For workflow testing only — not a field capture.</small>}
+      {!file && (
+        <small className="generated-note">
+          For workflow testing only — not a field capture.
+        </small>
+      )}
       {file && (
         <button type="button" onClick={() => pick()}>
           Remove
@@ -1329,6 +1406,10 @@ function Processing({ s }: { s: any }) {
       sub={`Inspection ${s.id} · actual backend stage state`}
     >
       <Glass className="processing-core">
+        <div className="analysis-simulator">
+          <CockpitLoader />
+          <span>FUSION ENGINE / LIVE TELEMETRY</span>
+        </div>
         <Fusion />
         <div className="pipeline-stages">
           {PIPE.map((x, i) => {
@@ -1447,7 +1528,13 @@ function Detail() {
   }, [id]);
   useEffect(() => {
     if (!d || d.prediction || d.status === "COMPLETED") return;
-    const poll = setInterval(() => api.get(`/inspections/${id}`, { params: { _fresh: Date.now() } }).then((r) => setD(r.data)), 500);
+    const poll = setInterval(
+      () =>
+        api
+          .get(`/inspections/${id}`, { params: { _fresh: Date.now() } })
+          .then((r) => setD(r.data)),
+      500,
+    );
     return () => clearInterval(poll);
   }, [id, d?.prediction, d?.status]);
   if (!d)
@@ -1461,7 +1548,15 @@ function Detail() {
       </Page>
     );
   if (!d.prediction)
-    return <Processing s={{ id: d.id, current: d.status?.toLowerCase() || "acquiring", stages: {} }} />;
+    return (
+      <Processing
+        s={{
+          id: d.id,
+          current: d.status?.toLowerCase() || "acquiring",
+          stages: {},
+        }}
+      />
+    );
   const p = d.prediction,
     imgs = Object.fromEntries(d.images.map((x: any) => [x.type, x]));
   async function ask() {
@@ -1611,7 +1706,7 @@ function Detail() {
             {report ? (
               <p>{report}</p>
             ) : (
-                <Btn onClick={ask} loading={asking}>
+              <Btn onClick={ask} loading={asking}>
                 Explain this inspection <I n="arrow" />
               </Btn>
             )}
@@ -2081,7 +2176,7 @@ function Landing2() {
               "AI CONNECTS SIGNALS",
               "YOU GET EVIDENCE",
             ].map((x, i) => (
-              <span>
+              <span key={x}>
                 <b>0{i + 1}</b>
                 {x}
               </span>
@@ -2386,7 +2481,11 @@ export default function App() {
       <div className="boot">
         <Bg />
         <Brand />
-        <span>Linking intelligence workspace…</span>
+        <CockpitLoader />
+        <span className="boot-status">Linking intelligence workspace…</span>
+        <div className="boot-telemetry">
+          <i /> RGB LINK <i /> THERMAL LINK <i /> CONTEXT LINK
+        </div>
       </div>
     );
   return (
@@ -2395,29 +2494,32 @@ export default function App() {
         const button = (event.target as HTMLElement).closest("button");
         if (!button || button.disabled) return;
         button.classList.add("button-feedback");
-        window.setTimeout(() => button.classList.remove("button-feedback"), 550);
+        window.setTimeout(
+          () => button.classList.remove("button-feedback"),
+          550,
+        );
       }}
     >
       <Routes>
-      <Route path="/" element={<Landing2 />} />
-      <Route path="/login" element={<Auth onAuth={setU} />} />
-      <Route path="/register" element={<Auth register onAuth={setU} />} />
-      <Route
-        path="/app/*"
-        element={
-          u ? (
-            <Shell
-              user={u}
-              out={() => {
-                localStorage.removeItem("etg_token");
-                setU(null);
-              }}
-            />
-          ) : (
-            <Auth onAuth={setU} />
-          )
-        }
-      />
+        <Route path="/" element={<Landing2 />} />
+        <Route path="/login" element={<Auth onAuth={setU} />} />
+        <Route path="/register" element={<Auth register onAuth={setU} />} />
+        <Route
+          path="/app/*"
+          element={
+            u ? (
+              <Shell
+                user={u}
+                out={() => {
+                  localStorage.removeItem("etg_token");
+                  setU(null);
+                }}
+              />
+            ) : (
+              <Auth onAuth={setU} />
+            )
+          }
+        />
       </Routes>
     </div>
   );
