@@ -29,4 +29,3 @@ def list_experiments(limit: int = 25) -> list[dict]:
         if len(records) >= limit:
             break
     return records
-

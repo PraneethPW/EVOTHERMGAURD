@@ -67,4 +67,3 @@ def test_dual_branch_network_and_true_gradcam():
     assert 0 <= result.target_class < 4
     assert float(result.heatmap.min()) >= 0
     assert float(result.heatmap.max()) <= 1
-

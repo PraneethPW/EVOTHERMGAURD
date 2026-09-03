@@ -51,4 +51,3 @@ def test_manifest_rejects_unlabelled_or_unsplit_data(tmp_path):
     assert summary["ready"] is False
     with pytest.raises(ManifestValidationError):
         MultimodalDataset(manifest, "train")
-
