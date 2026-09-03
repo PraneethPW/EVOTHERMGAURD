@@ -1586,7 +1586,12 @@ function Detail() {
         >
           <span>
             {p ? (p.confidence * 100).toFixed(1) + "%" : "—"}
-            <small>HEURISTIC SCORE</small>
+            <small>
+              {p?.explanation_metadata?.output_type ===
+              "LEARNED_MULTIMODAL_CLASSIFICATION"
+                ? "MODEL CONFIDENCE"
+                : "HEURISTIC SCORE"}
+            </small>
           </span>
         </div>
         <div>
@@ -1596,10 +1601,16 @@ function Detail() {
         </div>
         <div className="trace-panel">
           <span>
-            MODEL MODE<b>BASELINE HEURISTIC</b>
+            MODEL MODE
+            <b>
+              {d.model_status?.mode === "trained"
+                ? "MULTIMODAL CNN"
+                : "BASELINE HEURISTIC"}
+            </b>
           </span>
           <span>
-            VALIDATION<b>UNVALIDATED</b>
+            VALIDATION
+            <b>{d.model_status?.validated ? "HELD-OUT" : "UNVALIDATED"}</b>
           </span>
           <span>
             REGISTRATION
@@ -1613,6 +1624,7 @@ function Detail() {
             <div className="evidence-tabs">
               {["RGB", "THERMAL", "FUSED", "GRADCAM", "COMPARE"].map((x) => (
                 <button
+                  key={x}
                   className={tab === x ? "active" : ""}
                   onClick={() => setTab(x)}
                 >
@@ -1650,14 +1662,16 @@ function Detail() {
               )}
             </div>
             <p>
-              Model-attributed regions support review; they are not confirmed
-              fault locations.
+              {p.explanation_metadata?.gradcam_label ||
+                "Attribution supports review; it is not a confirmed fault location."}
+              {p.explanation_metadata?.localized_region?.instruction &&
+                ` · ${p.explanation_metadata.localized_region.instruction}`}
             </p>
           </Glass>
           <Glass className="probability-panel">
             <Title eye="MODEL OUTPUT" title="Risk spectrum" />
             {Object.entries(p.probabilities).map(([k, v]: any) => (
-              <div className="probability">
+              <div key={k} className="probability">
                 <span>{label(k)}</span>
                 <i>
                   <motion.b
@@ -1679,7 +1693,7 @@ function Detail() {
                 ["weather", "Weather", d.environment.weather],
                 ["time", "Time", d.environment.time_of_day],
               ].map((x) => (
-                <div>
+                <div key={x[1]}>
                   <I n={x[0]} />
                   <span>
                     <small>{x[1]}</small>
@@ -1783,7 +1797,7 @@ function Risk() {
               <Title eye="RISK DISTRIBUTION" title="Recorded assessments" />
               <div className="risk-bars">
                 {RISKS.map((x, i) => (
-                  <div>
+                  <div key={x}>
                     <span>{label(x)}</span>
                     <i>
                       <b
@@ -1802,10 +1816,22 @@ function Risk() {
               <Title eye="RECENT ALERT EVENTS" title="Review queue" />
               {d.alerts.length ? (
                 d.alerts.map((x: any) => (
-                  <Link to={`/app/inspections/${x.inspection_id}`}>
+                  <Link
+                    key={x.id}
+                    className={
+                      x.notification_policy?.prominent ? "prominent-alert" : ""
+                    }
+                    to={`/app/inspections/${x.inspection_id}`}
+                  >
                     <Badge risk={x.severity} />
                     <p>{x.message}</p>
-                    <small>{date(x.created_at)}</small>
+                    <small>
+                      {x.notification_policy?.email
+                        ? "DASHBOARD + EMAIL"
+                        : "DASHBOARD"}
+                      <br />
+                      {date(x.created_at)}
+                    </small>
                   </Link>
                 ))
               ) : (
@@ -1837,7 +1863,7 @@ function Radar({ equipment }: { equipment: any[] }) {
             cx = 200 + Math.cos(a) * r,
             cy = 150 + Math.sin(a) * r;
           return (
-            <g>
+            <g key={x.id || x.name}>
               <circle
                 className={tone(x.latest?.risk_level)}
                 cx={cx}
@@ -1862,6 +1888,16 @@ function Lab() {
     api.get("/models/status").then((r) => setS(r.data));
     api.get("/experiments").then((r) => setE(r.data));
   }, []);
+  const variants = [
+    ["rgb", "RGB Only"],
+    ["thermal", "Thermal Only"],
+    ["fusion", "RGB + Thermal"],
+    ["fusion_env", "RGB + Thermal + Environment"],
+  ];
+  const experimentFor = (modality: string) =>
+    e.find((item) => item.modality === modality && item.metrics);
+  const optimized = e.find((item) => item.method === "NSGA-II");
+  const latestValidated = e.find((item) => item.metrics);
   return (
     <Page
       eye="EVOLUTIONARY MODEL LAB"
@@ -1876,38 +1912,80 @@ function Lab() {
             <dt>MODE</dt>
             <dd>{s?.mode?.toUpperCase()}</dd>
             <dt>VALIDATION</dt>
-            <dd>UNVALIDATED</dd>
+            <dd>{s?.validated ? "HELD-OUT COMPLETE" : "AWAITING DATA"}</dd>
             <dt>BACKBONE</dt>
-            <dd>Deterministic heuristic</dd>
+            <dd>
+              {s?.mode === "trained" ? "Dual ResNet-18" : "Heuristic baseline"}
+            </dd>
             <dt>CHECKPOINT</dt>
-            <dd>Not loaded</dd>
+            <dd>{s?.checkpoint?.available ? "AVAILABLE" : "NOT SUPPLIED"}</dd>
           </dl>
+          <div
+            className={`dataset-readiness ${s?.dataset?.ready ? "ready" : "pending"}`}
+          >
+            <span>LABELLED RGB / THERMAL DATASET</span>
+            <b>
+              {s?.dataset?.ready
+                ? `${s.dataset.sample_count} PAIRED SAMPLES`
+                : "MANIFEST REQUIRED"}
+            </b>
+            <small>
+              {s?.dataset?.ready
+                ? "Environment is associated sample context."
+                : s?.dataset?.reason || "Checking dataset registry…"}
+            </small>
+          </div>
         </Glass>
         <Glass className="architecture">
-          <Title eye="MULTIMODAL ARCHITECTURE" title="Configured signal path" />
-          <Fusion />
+          <Title eye="MULTIMODAL ARCHITECTURE" title="Trainable signal path" />
+          <div className="research-pipeline">
+            <div>
+              <span>RGB IMAGE</span>
+              <b>CNN BRANCH</b>
+            </div>
+            <div>
+              <span>THERMAL</span>
+              <b>CNN BRANCH</b>
+            </div>
+            <div>
+              <span>ASSOCIATED CONTEXT</span>
+              <b>ENVIRONMENT MLP</b>
+            </div>
+            <i>FUSION</i>
+            <strong>4-CLASS RISK CLASSIFIER</strong>
+          </div>
+          <p className="research-note">
+            The deployed heuristic remains the comparison baseline until a real
+            labelled checkpoint passes held-out evaluation.
+          </p>
         </Glass>
         <Glass className="comparison">
-          <Title eye="MODEL COMPARISON" title="Evaluation readiness" />
-          {[
-            "RGB-only",
-            "Thermal-only",
-            "Fusion",
-            "Fusion + Environment",
-            "NSGA-II Optimised",
-          ].map((x, i) => (
-            <div>
-              <span>0{i + 1}</span>
-              <b>{x}</b>
-              <small>NOT EVALUATED</small>
-            </div>
-          ))}
+          <Title eye="ABLATION MATRIX" title="Real held-out comparisons" />
+          {variants.map(([id, name], i) => {
+            const experiment = experimentFor(id);
+            return (
+              <div key={id}>
+                <span>0{i + 1}</span>
+                <b>{name}</b>
+                <small>
+                  {experiment
+                    ? `F1 ${(experiment.metrics.f1_macro * 100).toFixed(1)}%`
+                    : "AWAITING LABELLED RUN"}
+                </small>
+              </div>
+            );
+          })}
+          <div>
+            <span>05</span>
+            <b>NSGA-II Optimised</b>
+            <small>{optimized ? "PARETO FRONT READY" : "NOT RUN"}</small>
+          </div>
         </Glass>
         <Glass className="nsga">
           <Title
             eye="NSGA-II PARETO FRONT"
             title={
-              e.length ? "Experiment candidates" : "No optimisation run yet"
+              optimized ? "Validated candidates" : "No optimisation run yet"
             }
           />
           <div className="pareto-grid">
@@ -1915,8 +1993,46 @@ function Lab() {
               <path d="M10,13C34,17 48,29 61,43C72,53 85,55 94,57" />
             </svg>
           </div>
-          <p>Run on a labelled validation dataset to populate the frontier.</p>
-          <code>python -m ml_training.optimize</code>
+          <p>
+            {optimized
+              ? `${optimized.evaluations?.length || 0} real candidate runs recorded.`
+              : "Run against the labelled training and validation splits to populate this frontier."}
+          </p>
+          <code>
+            python -m ml_training.optimize --manifest dataset/manifest.csv
+          </code>
+        </Glass>
+        <Glass className="research-metrics">
+          <Title eye="RESEARCH VALIDATION" title="Held-out test metrics" />
+          {latestValidated ? (
+            <div className="metric-ledger">
+              {[
+                ["Accuracy", latestValidated.metrics.accuracy],
+                ["Precision", latestValidated.metrics.precision_macro],
+                ["Recall", latestValidated.metrics.recall_macro],
+                ["F1-score", latestValidated.metrics.f1_macro],
+                ["ROC-AUC", latestValidated.metrics.roc_auc_ovr_macro],
+                [
+                  "Localization IoU",
+                  latestValidated.metrics.localization?.mean_iou,
+                ],
+              ].map(([name, value]) => (
+                <div key={String(name)}>
+                  <span>{name}</span>
+                  <b>
+                    {typeof value === "number"
+                      ? `${(value * 100).toFixed(1)}%`
+                      : "N/A"}
+                  </b>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Empty
+              title="No scientific metrics yet"
+              copy="Metrics appear only after a properly labelled held-out test run. Demo images never generate research claims."
+            />
+          )}
         </Glass>
       </div>
     </Page>
@@ -1961,7 +2077,7 @@ function AI() {
           <select value={id} onChange={(e) => setId(e.target.value)}>
             <option value="">Choose completed inspection</option>
             {items.map((x) => (
-              <option value={x.id}>
+              <option key={x.id} value={x.id}>
                 {x.equipment_name} · {label(x.prediction.risk_level)}
               </option>
             ))}
@@ -1985,7 +2101,9 @@ function AI() {
               "How might environment influence interpretation?",
               "Create a maintenance review summary.",
             ].map((x) => (
-              <button onClick={() => setQ(x)}>{x}</button>
+              <button key={x} onClick={() => setQ(x)}>
+                {x}
+              </button>
             ))}
           </div>
           <textarea value={q} onChange={(e) => setQ(e.target.value)} />

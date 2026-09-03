@@ -9,6 +9,8 @@ from app.models.entities import User,Equipment,Inspection,InspectionEnvironment,
 from app.schemas.schemas import RegisterIn,LoginIn,UserOut,TokenOut,EquipmentIn,EquipmentOut,InspectionIn,FeedbackIn
 from app.services.storage import save_upload
 from app.services.analysis import analysis_service
+from app.services.experiments import list_experiments
+from app.services.notifications import policy_for
 from app.ml.inference import model_service
 from app.integrations.openrouter import explain, fallback_explanation
 import asyncio
@@ -108,7 +110,8 @@ async def feedback(inspection_id:str,body:FeedbackIn,user:User=Depends(current_u
  await detail(inspection_id,user,db); record=MaintenanceFeedback(inspection_id=inspection_id,**body.model_dump()); db.add(record); await db.commit(); return {"id":record.id}
 @router.get('/alerts')
 async def alerts(user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
- return (await db.scalars(select(Alert).join(Inspection).where(Inspection.user_id==user.id).order_by(Alert.created_at.desc()))).all()
+ items=(await db.scalars(select(Alert).join(Inspection).where(Inspection.user_id==user.id).order_by(Alert.created_at.desc()))).all()
+ return [{"id":item.id,"inspection_id":item.inspection_id,"severity":item.severity.value,"status":item.status,"message":item.message,"created_at":item.created_at,"notification_policy":policy_for(item.severity.value)} for item in items]
 @router.get('/dashboard')
 async def dashboard(user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
  runs=(await db.scalars(select(Inspection).where(Inspection.user_id==user.id).order_by(Inspection.created_at.desc()))).all(); equipment=(await db.scalars(select(Equipment).where(Equipment.user_id==user.id).order_by(Equipment.created_at.desc()))).all(); alerts=(await db.scalars(select(Alert).join(Inspection).where(Inspection.user_id==user.id).order_by(Alert.created_at.desc()))).all(); distribution={k:0 for k in ["NORMAL","WARNING","HIGH_RISK","CRITICAL"]}; recent=[]; activity=[]; latest_by_equipment={}
@@ -120,7 +123,7 @@ async def dashboard(user:User=Depends(current_user),db:AsyncSession=Depends(get_
   activity.append({"date":run.created_at.isoformat(),"risk_level":row["risk_level"],"confidence":row["confidence"]})
   latest_by_equipment.setdefault(run.equipment_id,row)
  equipment_matrix=[{"id":e.id,"name":e.equipment_name,"type":e.equipment_type,"asset_code":e.asset_code,"location":e.location_label,"latest":latest_by_equipment.get(e.id)} for e in equipment]
- return {"inspection_count":len(runs),"equipment_count":len(equipment),"active_warnings":distribution["WARNING"],"high_risk_events":distribution["HIGH_RISK"]+distribution["CRITICAL"],"open_alerts":sum(1 for a in alerts if a.status=="OPEN"),"risk_distribution":distribution,"recent":recent,"activity":activity,"equipment_matrix":equipment_matrix,"alerts":[{"id":a.id,"inspection_id":a.inspection_id,"severity":a.severity.value,"status":a.status,"message":a.message,"created_at":a.created_at} for a in alerts[:6]],"model":model_service.status()}
+ return {"inspection_count":len(runs),"equipment_count":len(equipment),"active_warnings":distribution["WARNING"],"high_risk_events":distribution["HIGH_RISK"]+distribution["CRITICAL"],"open_alerts":sum(1 for a in alerts if a.status=="OPEN"),"risk_distribution":distribution,"recent":recent,"activity":activity,"equipment_matrix":equipment_matrix,"alerts":[{"id":a.id,"inspection_id":a.inspection_id,"severity":a.severity.value,"status":a.status,"message":a.message,"created_at":a.created_at,"notification_policy":policy_for(a.severity.value)} for a in alerts[:6]],"model":model_service.status()}
 @router.get('/risk/overview')
 async def risk_overview(user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
  data=await dashboard(user,db)
@@ -136,7 +139,7 @@ async def ai(inspection_id:str,question:str="Explain this inspection result in o
 @router.get('/models/status')
 async def model_status(user:User=Depends(current_user)): return model_service.status()
 @router.get('/experiments')
-async def experiments(user:User=Depends(current_user)): return []
+async def experiments(user:User=Depends(current_user)): return list_experiments()
 
 def action_for(risk:str|None):
  return {"NORMAL":"Routine record; continue scheduled monitoring.","WARNING":"Review evidence and monitor the asset.","HIGH_RISK":"Engineering inspection recommended.","CRITICAL":"Immediate engineering review recommended."}.get(risk,"Complete analysis to receive an operator review recommendation.")

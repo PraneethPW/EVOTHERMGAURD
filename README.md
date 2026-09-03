@@ -10,9 +10,14 @@ EvoThermGuard is a full-stack, decision-support platform for thermal inspection 
 
 - JWT account registration, sign-in, protected routes and owner-scoped data access.
 - Equipment registry; inspection creation; JPEG/PNG validation; UUID evidence storage outside the database.
-- OpenCV preprocessing, ORB/homography registration with low-confidence fallback, visual fusion, and a generated model-attributed-region overlay.
-- Deterministic, image-derived baseline risk engine using thermal distribution/texture and entered environmental values. It is always shown as **BASELINE / UNVALIDATED MODEL**.
-- Traceable inspections, prediction probabilities, internal high-risk alerts, maintenance feedback schema, history, risk display, and an inspection-aware AI Analyst.
+- OpenCV preprocessing, ORB/homography registration with low-confidence fallback, and registered RGB/thermal visual fusion.
+- A real PyTorch multimodal architecture: RGB ResNet-18 branch + thermal ResNet-18 branch + an MLP for environmental context associated with each image pair.
+- True gradient-based Grad-CAM and an explicit circle/bounding region labelled **Inspect this area** whenever a validated CNN checkpoint is active. Baseline runs remain clearly labelled thermal saliency—not Grad-CAM.
+- A strict labelled manifest contract with train/validation/test splits, four risk labels, optional localization masks, file validation, and reproducible experiment artifacts.
+- Held-out accuracy, macro precision/recall/F1, multiclass ROC-AUC, confusion matrix, and mask-based localization IoU/Dice where labels permit.
+- Opt-in NSGA-II hyperparameter search using validation F1 and validation loss as its two objectives; the test split is never an optimization objective.
+- The deterministic `baseline-heuristic-v1` remains available as the comparison and runtime fallback until a genuine checkpoint is supplied.
+- Tiered notifications: Normal creates no alert, Warning creates a dashboard warning, High Risk creates dashboard + email, and Critical creates a prominent dashboard alert + email. Email delivery activates only when SMTP is configured.
 - OpenRouter integration only for narrative explanation. It gets structured inspection data and fails safely to deterministic language; inference never waits on it.
 - React command-center UI with responsive layout, mobile dock, evidence grid and scientific positioning.
 - Training and optimisation scaffolding; model lab deliberately presents no fake metrics or NSGA-II records.
@@ -24,8 +29,11 @@ flowchart LR
   O[Operator] --> R[React / Vite App]
   R --> F[FastAPI]
   F --> P[Preprocess + Registration + Fusion]
-  P --> M[Model interface / Demo baseline]
-  M --> G[Evidence overlay + Risk interpretation]
+  P --> M{Validated checkpoint?}
+  M -->|Yes| C[RGB CNN + Thermal CNN + Context MLP]
+  M -->|No| B[baseline-heuristic-v1]
+  C --> G[True Grad-CAM + localized region]
+  B --> G[Clearly labelled baseline saliency]
   G --> D[(Neon PostgreSQL)]
   G --> S[Evidence storage]
   G --> A[OpenRouter analyst / safe fallback]
@@ -78,10 +86,14 @@ Open `http://localhost:5173`; API health is available at `http://localhost:8000/
 | `DATABASE_URL` | Neon async PostgreSQL URL (`postgresql+asyncpg://…`) |
 | `JWT_SECRET` | long random production signing secret |
 | `FRONTEND_URL` | exact allowed frontend origin |
-| `MODEL_MODE` | `demo` by default; `trained` only with a real checkpoint/inference implementation |
+| `MODEL_MODE` | `demo` by default; use `trained` only with a reviewed real checkpoint |
 | `MODEL_CHECKPOINT` | trained checkpoint location |
+| `DATASET_MANIFEST` | labelled paired-sample manifest shown by model status |
+| `EXPERIMENTS_PATH` | completed JSON experiment artifact directory |
 | `OPENROUTER_API_KEY` | optional explanation service key; never frontend-exposed |
 | `STORAGE_PATH` | evidence directory (local development only) |
+| `SMTP_HOST`, `SMTP_PORT` | optional High Risk / Critical email transport |
+| `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL` | optional SMTP credentials and sender |
 
 ## API overview
 
@@ -92,11 +104,27 @@ Open `http://localhost:5173`; API health is available at `http://localhost:8000/
 - `POST /api/v1/inspections/{id}/feedback`, `GET /api/v1/alerts`
 - `POST /api/v1/ai/inspections/{id}`, `GET /api/v1/models/status`, `GET /api/v1/experiments`
 
-## Demo vs. trained model
+## Dataset and real model workflow
 
-The current demo baseline uses measured pixel statistics from the submitted thermal visualisation and the submitted environment values. It is deterministic but **not scientifically or engineering validated**. It must not be used as a failure predictor.
+The application never treats operator-entered weather values as a separate dataset. Every row represents one labelled paired observation: RGB + thermal + its associated environmental context. Copy `backend/dataset/manifest.example.csv` to `backend/dataset/manifest.csv`, then add real field evidence and these required fields:
 
-For a research model, provide labelled multimodal data with the manifest fields `rgb_path`, `thermal_path`, `ambient_temperature`, `humidity`, `weather`, `season`, `time_of_day`, and `label`. Implement/train the dual-branch RGB + thermal + environment architecture, validate on held-out data, save real metrics/checkpoints, and then set `MODEL_MODE=trained`. NSGA-II is opt-in and must never run at server startup.
+`sample_id,rgb_path,thermal_path,ambient_temperature,humidity,weather,season,time_of_day,sun_exposure,label,split`
+
+Labels must be `NORMAL`, `WARNING`, `HIGH_RISK`, or `CRITICAL`; splits must be `train`, `validation`, and `test`. Add `mask_path` when a reviewed anomaly-region mask exists.
+
+Run the ablation matrix from `backend/`:
+
+```bash
+python -m ml_training.train --manifest dataset/manifest.csv --modality rgb
+python -m ml_training.train --manifest dataset/manifest.csv --modality thermal
+python -m ml_training.train --manifest dataset/manifest.csv --modality fusion
+python -m ml_training.train --manifest dataset/manifest.csv --modality fusion_env
+python -m ml_training.optimize --manifest dataset/manifest.csv
+```
+
+Each completed run writes its real configuration, manifest hash, learning history, held-out metrics, confusion matrix, and localization scores to `backend/models/experiment-*.json`. The Model Lab reads only those artifacts; it never displays invented metrics.
+
+To activate a reviewed checkpoint, install the full training requirements in the inference image, set `MODEL_MODE=trained`, and set `MODEL_CHECKPOINT` to the saved `multimodal-fusion_env-best.pt`. Without all three conditions, the software keeps `baseline-heuristic-v1` active and reports the reason through `/api/v1/models/status`.
 
 ## Docker
 
@@ -107,9 +135,8 @@ docker compose up --build
 
 Use a Neon database; the compose stack deliberately does not create a local Postgres service. For production, deploy `frontend` to Vercel, `backend` to Railway, set `VITE_API_URL` to the Railway `/api/v1` URL, allow the Vercel origin through `FRONTEND_URL`, and replace local evidence storage with S3/R2/Supabase Storage—Railway disk is ephemeral.
 
-## Remaining research work
+## Research position
 
-- Train and independently evaluate the real PyTorch dual-branch architecture with correctly labelled/radiometric data where applicable.
-- Implement checkpoint loading and true CNN Grad-CAM for that trained architecture.
-- Run and persist real NSGA-II experiments.
-- Add a production object-store implementation, migration revision committed from the generated initial schema, and optional SMTP delivery configuration.
+The complete software baseline and multispectral processing platform are implemented. The trainable multimodal network, true Grad-CAM runtime path, evaluation suite, and evolutionary search are now implemented as reproducible research code. Actual research claims remain pending until properly labelled field data is supplied, the ablation runs complete, and results are independently reviewed. The heuristic system remains the explicit baseline for comparison.
+
+Production still requires durable object storage for evidence. Railway filesystems are ephemeral unless a volume or external S3-compatible store is configured.

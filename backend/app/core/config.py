@@ -12,10 +12,18 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     model_mode: str = "demo"
     model_checkpoint: str = ""
+    dataset_manifest: str = "./dataset/manifest.csv"
+    experiments_path: str = "./models"
     storage_path: str = "./storage"
     frontend_url: str = "http://localhost:5173"
     cors_origins: str = ""
     max_upload_bytes: int = 10 * 1024 * 1024
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_use_tls: bool = True
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

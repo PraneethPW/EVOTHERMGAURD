@@ -1,0 +1,1 @@
+sample_id,rgb_path,thermal_path,ambient_temperature,humidity,weather,season,time_of_day,sun_exposure,label,split,mask_path

@@ -12,6 +12,7 @@ backend/storage/*
 backend/models/checkpoints/*
 *.pt
 *.pth
+*-qa.db
 .DS_Store
 .vscode/
 .idea/
