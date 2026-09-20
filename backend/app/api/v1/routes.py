@@ -1,16 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from datetime import datetime
 from uuid import uuid4
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.api.deps import current_user
 from app.core.security import hash_password,verify_password,create_token
-from app.models.entities import User,Equipment,Inspection,InspectionEnvironment,InspectionImage,Prediction,Alert,MaintenanceFeedback,ImageType,AIAnalysis
-from app.schemas.schemas import RegisterIn,LoginIn,UserOut,TokenOut,EquipmentIn,EquipmentOut,InspectionIn,FeedbackIn
+from app.models.entities import User,Equipment,Inspection,InspectionEnvironment,InspectionImage,Prediction,Alert,MaintenanceFeedback,ImageType,AIAnalysis,MonitoringSource
+from app.schemas.schemas import RegisterIn,LoginIn,UserOut,TokenOut,EquipmentIn,EquipmentOut,InspectionIn,FeedbackIn,MonitoringSourceIn,MonitoringSourceUpdate
 from app.services.storage import save_upload
 from app.services.analysis import analysis_service
 from app.services.experiments import list_experiments
 from app.services.notifications import policy_for
+from app.services.monitoring import CAPTURE_INTERVAL_MINUTES,capture_source
 from app.ml.inference import model_service
 from app.integrations.openrouter import explain, fallback_explanation
 import asyncio
@@ -51,6 +53,41 @@ async def equipment_list(user:User=Depends(current_user),db:AsyncSession=Depends
 @router.post('/equipment',response_model=EquipmentOut)
 async def equipment_create(body:EquipmentIn,user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
  item=Equipment(user_id=user.id,**body.model_dump()); db.add(item); await db.commit(); await db.refresh(item); return item
+
+def monitoring_payload(item:MonitoringSource):
+ return {"id":item.id,"equipment_id":item.equipment_id,"equipment_name":item.equipment.equipment_name,"equipment_type":item.equipment.equipment_type,"station_name":item.station_name,"latitude":item.latitude,"longitude":item.longitude,"rgb_camera_url":item.rgb_camera_url,"thermal_camera_url":item.thermal_camera_url,"capture_interval_minutes":item.capture_interval_minutes,"monitoring_enabled":item.monitoring_enabled,"last_capture_at":item.last_capture_at,"next_capture_at":item.next_capture_at,"last_error":item.last_error,"created_at":item.created_at,"updated_at":item.updated_at}
+
+@router.get('/monitoring/sources')
+async def monitoring_sources(user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
+ items=(await db.scalars(select(MonitoringSource).where(MonitoringSource.user_id==user.id).order_by(MonitoringSource.created_at.desc()))).all()
+ return [monitoring_payload(item) for item in items]
+
+@router.post('/monitoring/sources',status_code=201)
+async def monitoring_create(body:MonitoringSourceIn,user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
+ equipment=await db.scalar(select(Equipment).where(Equipment.id==body.equipment_id,Equipment.user_id==user.id))
+ if not equipment: raise HTTPException(404,"Equipment not found")
+ if await db.scalar(select(MonitoringSource.id).where(MonitoringSource.equipment_id==equipment.id)): raise HTTPException(409,"This equipment already has a monitoring source; update it instead")
+ data=body.model_dump(mode="json"); data["rgb_camera_url"]=str(data["rgb_camera_url"]); data["thermal_camera_url"]=str(data["thermal_camera_url"])
+ item=MonitoringSource(user_id=user.id,capture_interval_minutes=CAPTURE_INTERVAL_MINUTES,next_capture_at=datetime.utcnow() if data["monitoring_enabled"] else None,**data)
+ db.add(item); await db.commit(); await db.refresh(item); item.equipment=equipment; return monitoring_payload(item)
+
+@router.patch('/monitoring/sources/{source_id}')
+async def monitoring_update(source_id:str,body:MonitoringSourceUpdate,user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
+ item=await db.scalar(select(MonitoringSource).where(MonitoringSource.id==source_id,MonitoringSource.user_id==user.id))
+ if not item: raise HTTPException(404,"Monitoring source not found")
+ data=body.model_dump(exclude_unset=True,mode="json")
+ for field,value in data.items(): setattr(item,field,str(value) if field.endswith("camera_url") else value)
+ if data.get("monitoring_enabled") is True and item.next_capture_at is None: item.next_capture_at=datetime.utcnow()
+ if data.get("monitoring_enabled") is False: item.next_capture_at=None
+ await db.commit(); await db.refresh(item); return monitoring_payload(item)
+
+@router.post('/monitoring/sources/{source_id}/capture-now',status_code=201)
+async def monitoring_capture_now(source_id:str,user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
+ item=await db.scalar(select(MonitoringSource).where(MonitoringSource.id==source_id,MonitoringSource.user_id==user.id))
+ if not item: raise HTTPException(404,"Monitoring source not found")
+ try: inspection_id=await capture_source(item.id)
+ except Exception as exc: raise HTTPException(502,f"Automatic capture failed: {str(exc)[:400]}") from exc
+ return {"inspection_id":inspection_id,"status":"COMPLETED"}
 @router.get('/equipment/{equipment_id}')
 async def equipment_detail(equipment_id:str,user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
  item=await db.scalar(select(Equipment).where(Equipment.id==equipment_id,Equipment.user_id==user.id))
@@ -89,7 +126,8 @@ async def detail(inspection_id,user,db):
  inspection=await db.scalar(select(Inspection).where(Inspection.id==inspection_id,Inspection.user_id==user.id));
  if not inspection: raise HTTPException(404,"Inspection not found")
  env=await db.scalar(select(InspectionEnvironment).where(InspectionEnvironment.inspection_id==inspection_id)); pred=await db.scalar(select(Prediction).where(Prediction.inspection_id==inspection_id)); imgs=(await db.scalars(select(InspectionImage).where(InspectionImage.inspection_id==inspection_id))).all(); feedback=(await db.scalars(select(MaintenanceFeedback).where(MaintenanceFeedback.inspection_id==inspection_id))).all()
- return {"id":inspection.id,"status":inspection.status,"created_at":inspection.created_at,"completed_at":inspection.completed_at,"model_version":inspection.model_version,"equipment":{"id":inspection.equipment.id,"name":inspection.equipment.equipment_name,"type":inspection.equipment.equipment_type,"asset_code":inspection.equipment.asset_code,"location":inspection.equipment.location_label},"environment":env,"prediction":pred,"images":[{"type":i.image_type.value,"url":"/evidence/"+i.file_path.replace('\\','/').split('/storage/')[-1],"width":i.width,"height":i.height,"metadata":i.metadata_json} for i in imgs],"feedback":feedback,"model_status":model_service.status(),"recommended_action":action_for(pred.risk_level.value if pred else None)}
+ alert=await db.scalar(select(Alert).where(Alert.inspection_id==inspection_id).order_by(Alert.created_at.desc()))
+ return {"id":inspection.id,"status":inspection.status,"capture_mode":inspection.capture_mode.value,"monitoring_source_id":inspection.monitoring_source_id,"alert_status":alert.status if alert else "NO_ALERT","created_at":inspection.created_at,"completed_at":inspection.completed_at,"model_version":inspection.model_version,"equipment":{"id":inspection.equipment.id,"name":inspection.equipment.equipment_name,"type":inspection.equipment.equipment_type,"asset_code":inspection.equipment.asset_code,"location":inspection.equipment.location_label},"environment":env,"prediction":pred,"images":[{"type":i.image_type.value,"url":"/evidence/"+i.file_path.replace('\\','/').split('/storage/')[-1],"width":i.width,"height":i.height,"metadata":i.metadata_json} for i in imgs],"feedback":feedback,"model_status":model_service.status(),"recommended_action":action_for(pred.risk_level.value if pred else None)}
 @router.get('/inspections')
 async def inspections(risk:str|None=None,equipment_id:str|None=None,search:str|None=None,user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
  stmt=select(Inspection).where(Inspection.user_id==user.id).order_by(Inspection.created_at.desc())
@@ -99,7 +137,8 @@ async def inspections(risk:str|None=None,equipment_id:str|None=None,search:str|N
   pred=await db.scalar(select(Prediction).where(Prediction.inspection_id==i.id)); env=await db.scalar(select(InspectionEnvironment).where(InspectionEnvironment.inspection_id==i.id)); imgs=(await db.scalars(select(InspectionImage).where(InspectionImage.inspection_id==i.id))).all()
   if risk and (not pred or pred.risk_level.value!=risk): continue
   if search and search.lower() not in i.equipment.equipment_name.lower(): continue
-  result.append({"id":i.id,"created_at":i.created_at,"completed_at":i.completed_at,"status":i.status,"equipment_id":i.equipment_id,"equipment_name":i.equipment.equipment_name,"equipment_type":i.equipment.equipment_type,"model_version":i.model_version,"prediction":pred,"environment":{"ambient_temperature":env.ambient_temperature,"humidity":env.humidity,"weather":env.weather,"season":env.season,"time_of_day":env.time_of_day} if env else None,"thumbnail":next(("/evidence/"+x.file_path.replace('\\','/').split('/storage/')[-1] for x in imgs if x.image_type==ImageType.GRADCAM),None)})
+  alert=await db.scalar(select(Alert).where(Alert.inspection_id==i.id).order_by(Alert.created_at.desc()))
+  result.append({"id":i.id,"created_at":i.created_at,"completed_at":i.completed_at,"capture_mode":i.capture_mode.value,"alert_status":alert.status if alert else "NO_ALERT","status":i.status,"equipment_id":i.equipment_id,"equipment_name":i.equipment.equipment_name,"equipment_type":i.equipment.equipment_type,"model_version":i.model_version,"prediction":pred,"environment":{"ambient_temperature":env.ambient_temperature,"humidity":env.humidity,"weather":env.weather,"season":env.season,"time_of_day":env.time_of_day,"station_name":env.station_name,"latitude":env.latitude,"longitude":env.longitude,"weather_source":env.weather_source,"weather_observed_at":env.weather_observed_at} if env else None,"thumbnail":next(("/evidence/"+x.file_path.replace('\\','/').split('/storage/')[-1] for x in imgs if x.image_type==ImageType.GRADCAM),None)})
  return result
 @router.get('/inspections/{inspection_id}')
 async def inspection_detail(inspection_id:str,user:User=Depends(current_user),db:AsyncSession=Depends(get_db)): return await detail(inspection_id,user,db)
@@ -114,7 +153,7 @@ async def alerts(user:User=Depends(current_user),db:AsyncSession=Depends(get_db)
  return [{"id":item.id,"inspection_id":item.inspection_id,"severity":item.severity.value,"status":item.status,"message":item.message,"created_at":item.created_at,"notification_policy":policy_for(item.severity.value)} for item in items]
 @router.get('/dashboard')
 async def dashboard(user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
- runs=(await db.scalars(select(Inspection).where(Inspection.user_id==user.id).order_by(Inspection.created_at.desc()))).all(); equipment=(await db.scalars(select(Equipment).where(Equipment.user_id==user.id).order_by(Equipment.created_at.desc()))).all(); alerts=(await db.scalars(select(Alert).join(Inspection).where(Inspection.user_id==user.id).order_by(Alert.created_at.desc()))).all(); distribution={k:0 for k in ["NORMAL","WARNING","HIGH_RISK","CRITICAL"]}; recent=[]; activity=[]; latest_by_equipment={}
+ runs=(await db.scalars(select(Inspection).where(Inspection.user_id==user.id).order_by(Inspection.created_at.desc()))).all(); equipment=(await db.scalars(select(Equipment).where(Equipment.user_id==user.id).order_by(Equipment.created_at.desc()))).all(); monitors=(await db.scalars(select(MonitoringSource).where(MonitoringSource.user_id==user.id))).all(); alerts=(await db.scalars(select(Alert).join(Inspection).where(Inspection.user_id==user.id).order_by(Alert.created_at.desc()))).all(); distribution={k:0 for k in ["NORMAL","WARNING","HIGH_RISK","CRITICAL"]}; recent=[]; activity=[]; latest_by_equipment={}
  for run in runs:
   pred=await db.scalar(select(Prediction).where(Prediction.inspection_id==run.id)); env=await db.scalar(select(InspectionEnvironment).where(InspectionEnvironment.inspection_id==run.id))
   if pred: distribution[pred.risk_level.value]+=1
@@ -123,7 +162,7 @@ async def dashboard(user:User=Depends(current_user),db:AsyncSession=Depends(get_
   activity.append({"date":run.created_at.isoformat(),"risk_level":row["risk_level"],"confidence":row["confidence"]})
   latest_by_equipment.setdefault(run.equipment_id,row)
  equipment_matrix=[{"id":e.id,"name":e.equipment_name,"type":e.equipment_type,"asset_code":e.asset_code,"location":e.location_label,"latest":latest_by_equipment.get(e.id)} for e in equipment]
- return {"inspection_count":len(runs),"equipment_count":len(equipment),"active_warnings":distribution["WARNING"],"high_risk_events":distribution["HIGH_RISK"]+distribution["CRITICAL"],"open_alerts":sum(1 for a in alerts if a.status=="OPEN"),"risk_distribution":distribution,"recent":recent,"activity":activity,"equipment_matrix":equipment_matrix,"alerts":[{"id":a.id,"inspection_id":a.inspection_id,"severity":a.severity.value,"status":a.status,"message":a.message,"created_at":a.created_at,"notification_policy":policy_for(a.severity.value)} for a in alerts[:6]],"model":model_service.status()}
+ return {"inspection_count":len(runs),"equipment_count":len(equipment),"monitoring_source_count":len(monitors),"active_monitoring_count":sum(1 for source in monitors if source.monitoring_enabled),"active_warnings":distribution["WARNING"],"high_risk_events":distribution["HIGH_RISK"]+distribution["CRITICAL"],"open_alerts":sum(1 for a in alerts if a.status=="OPEN"),"risk_distribution":distribution,"recent":recent,"activity":activity,"equipment_matrix":equipment_matrix,"alerts":[{"id":a.id,"inspection_id":a.inspection_id,"severity":a.severity.value,"status":a.status,"message":a.message,"created_at":a.created_at,"notification_policy":policy_for(a.severity.value)} for a in alerts[:6]],"model":model_service.status()}
 @router.get('/risk/overview')
 async def risk_overview(user:User=Depends(current_user),db:AsyncSession=Depends(get_db)):
  data=await dashboard(user,db)

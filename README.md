@@ -2,14 +2,15 @@
 
 **Environment-Aware Evolutionary Deep Learning for Multispectral Thermal Anomaly Detection**
 
-EvoThermGuard is a full-stack, decision-support platform for thermal inspection of transformer and electrical equipment. It combines an RGB image, a thermal image and submitted environmental context into a traceable inspection record with generated visual evidence and operator-facing guidance.
+EvoThermGuard is a full-stack, decision-support platform for automatic thermal monitoring of transformer and electrical equipment. Every ten minutes it pairs RGB and thermal camera snapshots, associates coordinate-derived weather context, and creates a traceable inspection record with generated visual evidence and operator-facing guidance.
 
 > Research integrity: EvoThermGuard does not diagnose equipment failure, guarantee a failure prediction, or replace qualified engineering review. Thermal visualisation images are not treated as radiometric temperature matrices.
 
 ## What is implemented
 
 - JWT account registration, sign-in, protected routes and owner-scoped data access.
-- Equipment registry; inspection creation; JPEG/PNG validation; UUID evidence storage outside the database.
+- Equipment registry plus station/camera monitoring setup; automatic ten-minute paired captures; JPEG/PNG validation; UUID evidence storage outside the database.
+- Latitude/longitude weather enrichment through Open-Meteo. Station and weather values are snapshotted into each inspection so historical evidence remains immutable.
 - OpenCV preprocessing, ORB/homography registration with low-confidence fallback, and registered RGB/thermal visual fusion.
 - A real PyTorch multimodal architecture: RGB ResNet-18 branch + thermal ResNet-18 branch + an MLP for environmental context associated with each image pair.
 - True gradient-based Grad-CAM and an explicit circle/bounding region labelled **Inspect this area** whenever a validated CNN checkpoint is active. Baseline runs remain clearly labelled thermal saliency—not Grad-CAM.
@@ -26,8 +27,10 @@ EvoThermGuard is a full-stack, decision-support platform for thermal inspection 
 
 ```mermaid
 flowchart LR
-  O[Operator] --> R[React / Vite App]
-  R --> F[FastAPI]
+  O[Operator configures station and cameras] --> R[React / Vite App]
+  R --> F[FastAPI scheduler]
+  X[RGB + thermal cameras] --> F
+  W[Open-Meteo weather] --> F
   F --> P[Preprocess + Registration + Fusion]
   P --> M{Validated checkpoint?}
   M -->|Yes| C[RGB CNN + Thermal CNN + Context MLP]
@@ -94,11 +97,15 @@ Open `http://localhost:5173`; API health is available at `http://localhost:8000/
 | `STORAGE_PATH` | evidence directory (local development only) |
 | `SMTP_HOST`, `SMTP_PORT` | optional High Risk / Critical email transport |
 | `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL` | optional SMTP credentials and sender |
+| `MONITORING_POLL_SECONDS` | scheduler polling cadence; captures remain fixed at ten minutes |
+| `WEATHER_API_URL` | Open-Meteo current-weather endpoint |
 
 ## API overview
 
 - `POST /api/v1/auth/register`, `POST /auth/login`, `GET /auth/me`
 - `GET|POST /api/v1/equipment`
+- `GET|POST /api/v1/monitoring/sources`, `PATCH /monitoring/sources/{id}`
+- `POST /api/v1/monitoring/sources/{id}/capture-now` (connection test / operator-triggered test)
 - `POST /api/v1/inspections`, `POST /inspections/{id}/images`, `POST /inspections/{id}/analyze`
 - `GET /api/v1/inspections`, `GET /inspections/{id}`, `GET /inspections/{id}/result`
 - `POST /api/v1/inspections/{id}/feedback`, `GET /api/v1/alerts`

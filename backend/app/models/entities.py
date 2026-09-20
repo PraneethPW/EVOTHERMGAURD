@@ -9,14 +9,33 @@ def now(): return datetime.utcnow()
 class Base(DeclarativeBase): pass
 class RiskLevel(str, enum.Enum): NORMAL="NORMAL"; WARNING="WARNING"; HIGH_RISK="HIGH_RISK"; CRITICAL="CRITICAL"
 class ImageType(str, enum.Enum): RGB="RGB"; THERMAL="THERMAL"; FUSED="FUSED"; GRADCAM="GRADCAM"
+class CaptureMode(str, enum.Enum): MANUAL="MANUAL"; AUTOMATIC="AUTOMATIC"
 class User(Base):
     __tablename__="users"; id: Mapped[str]=mapped_column(String(36), primary_key=True, default=uid); name: Mapped[str]=mapped_column(String(120)); email: Mapped[str]=mapped_column(String(255), unique=True, index=True); password_hash: Mapped[str]=mapped_column(String(255)); created_at: Mapped[datetime]=mapped_column(DateTime, default=now); updated_at: Mapped[datetime]=mapped_column(DateTime, default=now, onupdate=now)
 class Equipment(Base):
     __tablename__="equipment"; id: Mapped[str]=mapped_column(String(36),primary_key=True,default=uid); user_id: Mapped[str]=mapped_column(ForeignKey("users.id"),index=True); equipment_name: Mapped[str]=mapped_column(String(150)); equipment_type: Mapped[str]=mapped_column(String(100)); asset_code: Mapped[Optional[str]]=mapped_column(String(100),nullable=True); location_label: Mapped[Optional[str]]=mapped_column(String(150),nullable=True); manufacturer: Mapped[Optional[str]]=mapped_column(String(120),nullable=True); notes: Mapped[Optional[str]]=mapped_column(Text,nullable=True); created_at: Mapped[datetime]=mapped_column(DateTime,default=now)
+class MonitoringSource(Base):
+    __tablename__="monitoring_sources"
+    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=uid)
+    user_id: Mapped[str]=mapped_column(ForeignKey("users.id"),index=True)
+    equipment_id: Mapped[str]=mapped_column(ForeignKey("equipment.id"),unique=True,index=True)
+    station_name: Mapped[str]=mapped_column(String(180))
+    latitude: Mapped[float]=mapped_column(Float)
+    longitude: Mapped[float]=mapped_column(Float)
+    rgb_camera_url: Mapped[str]=mapped_column(String(1000))
+    thermal_camera_url: Mapped[str]=mapped_column(String(1000))
+    capture_interval_minutes: Mapped[int]=mapped_column(default=10)
+    monitoring_enabled: Mapped[bool]=mapped_column(Boolean,default=True)
+    last_capture_at: Mapped[Optional[datetime]]=mapped_column(DateTime,nullable=True)
+    next_capture_at: Mapped[Optional[datetime]]=mapped_column(DateTime,nullable=True,index=True)
+    last_error: Mapped[Optional[str]]=mapped_column(Text,nullable=True)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now)
+    updated_at: Mapped[datetime]=mapped_column(DateTime,default=now,onupdate=now)
+    equipment: Mapped[Equipment]=relationship(lazy="selectin")
 class Inspection(Base):
-    __tablename__="inspections"; id: Mapped[str]=mapped_column(String(36),primary_key=True,default=uid); user_id: Mapped[str]=mapped_column(ForeignKey("users.id"),index=True); equipment_id: Mapped[str]=mapped_column(ForeignKey("equipment.id")); status: Mapped[str]=mapped_column(String(40),default="DRAFT"); created_at: Mapped[datetime]=mapped_column(DateTime,default=now); completed_at: Mapped[Optional[datetime]]=mapped_column(DateTime,nullable=True); model_version: Mapped[Optional[str]]=mapped_column(String(100),nullable=True); equipment: Mapped[Equipment]=relationship(lazy="selectin")
+    __tablename__="inspections"; id: Mapped[str]=mapped_column(String(36),primary_key=True,default=uid); user_id: Mapped[str]=mapped_column(ForeignKey("users.id"),index=True); equipment_id: Mapped[str]=mapped_column(ForeignKey("equipment.id")); monitoring_source_id: Mapped[Optional[str]]=mapped_column(ForeignKey("monitoring_sources.id"),nullable=True,index=True); capture_mode: Mapped[CaptureMode]=mapped_column(Enum(CaptureMode),default=CaptureMode.MANUAL); status: Mapped[str]=mapped_column(String(40),default="DRAFT"); created_at: Mapped[datetime]=mapped_column(DateTime,default=now); completed_at: Mapped[Optional[datetime]]=mapped_column(DateTime,nullable=True); model_version: Mapped[Optional[str]]=mapped_column(String(100),nullable=True); equipment: Mapped[Equipment]=relationship(lazy="selectin")
 class InspectionEnvironment(Base):
-    __tablename__="inspection_environments"; id: Mapped[str]=mapped_column(String(36),primary_key=True,default=uid); inspection_id: Mapped[str]=mapped_column(ForeignKey("inspections.id"),unique=True); ambient_temperature: Mapped[float]=mapped_column(Float); humidity: Mapped[float]=mapped_column(Float); weather: Mapped[str]=mapped_column(String(50)); season: Mapped[str]=mapped_column(String(50)); time_of_day: Mapped[str]=mapped_column(String(50)); sun_exposure: Mapped[Optional[str]]=mapped_column(String(50),nullable=True); notes: Mapped[Optional[str]]=mapped_column(Text,nullable=True)
+    __tablename__="inspection_environments"; id: Mapped[str]=mapped_column(String(36),primary_key=True,default=uid); inspection_id: Mapped[str]=mapped_column(ForeignKey("inspections.id"),unique=True); ambient_temperature: Mapped[float]=mapped_column(Float); humidity: Mapped[float]=mapped_column(Float); weather: Mapped[str]=mapped_column(String(50)); season: Mapped[str]=mapped_column(String(50)); time_of_day: Mapped[str]=mapped_column(String(50)); sun_exposure: Mapped[Optional[str]]=mapped_column(String(50),nullable=True); notes: Mapped[Optional[str]]=mapped_column(Text,nullable=True); station_name: Mapped[Optional[str]]=mapped_column(String(180),nullable=True); latitude: Mapped[Optional[float]]=mapped_column(Float,nullable=True); longitude: Mapped[Optional[float]]=mapped_column(Float,nullable=True); weather_source: Mapped[Optional[str]]=mapped_column(String(80),nullable=True); weather_observed_at: Mapped[Optional[datetime]]=mapped_column(DateTime,nullable=True)
 class InspectionImage(Base):
     __tablename__="inspection_images"; id: Mapped[str]=mapped_column(String(36),primary_key=True,default=uid); inspection_id: Mapped[str]=mapped_column(ForeignKey("inspections.id"),index=True); image_type: Mapped[ImageType]=mapped_column(Enum(ImageType)); file_path: Mapped[str]=mapped_column(String(500)); width: Mapped[Optional[int]]=mapped_column(nullable=True); height: Mapped[Optional[int]]=mapped_column(nullable=True); metadata_json: Mapped[dict]=mapped_column(JSON,default=dict); created_at: Mapped[datetime]=mapped_column(DateTime,default=now)
 class Prediction(Base):

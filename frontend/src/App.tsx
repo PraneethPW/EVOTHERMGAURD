@@ -289,7 +289,7 @@ function Landing() {
           <a href="#evidence">Evidence</a>
           <Link to="/login">Sign in</Link>
           <Link className="btn primary" to="/register">
-            Run inspection <I n="arrow" />
+            Start monitoring <I n="arrow" />
           </Link>
         </div>
       </nav>
@@ -602,7 +602,7 @@ function Field({ l, children }: { l: string; children: ReactNode }) {
 }
 const NAV = [
   ["home", "Dashboard", "/app"],
-  ["inspect", "New Inspection", "/app/inspect"],
+  ["inspect", "Live Monitoring", "/app/inspect"],
   ["history", "Inspections", "/app/history"],
   ["equipment", "Equipment", "/app/equipment"],
   ["risk", "Risk Monitor", "/app/risk"],
@@ -658,7 +658,7 @@ function Shell({ user, out }: { user: User; out: () => void }) {
         <AnimatePresence mode="wait">
           <Routes location={loc} key={loc.pathname}>
             <Route index element={<Dashboard />} />
-            <Route path="inspect" element={<Inspect />} />
+            <Route path="inspect" element={<Monitoring />} />
             <Route path="history" element={<History />} />
             <Route path="inspections/:id" element={<Detail />} />
             <Route path="equipment" element={<Equipment />} />
@@ -976,7 +976,7 @@ function EquipmentDetail() {
       action={
         d && (
           <Link className="btn primary" to={`/app/inspect?equipment=${id}`}>
-            Inspect asset <I n="arrow" />
+            Configure monitoring <I n="arrow" />
           </Link>
         )
       }
@@ -1021,12 +1021,200 @@ function EquipmentDetail() {
             ) : (
               <Empty
                 title="No inspection history"
-                copy="Run the first inspection for this asset."
+                copy="Configure paired cameras to begin automatic inspections."
               />
             )}
           </Glass>
         </div>
       )}
+    </Page>
+  );
+}
+type MonitorSource = {
+  id: string;
+  equipment_id: string;
+  equipment_name: string;
+  equipment_type: string;
+  station_name: string;
+  latitude: number;
+  longitude: number;
+  rgb_camera_url: string;
+  thermal_camera_url: string;
+  capture_interval_minutes: number;
+  monitoring_enabled: boolean;
+  last_capture_at?: string;
+  next_capture_at?: string;
+  last_error?: string;
+};
+function Monitoring() {
+  const nav = useNavigate(),
+    q = new URLSearchParams(useLocation().search);
+  const [equipment, setEquipment] = useState<Eq[]>([]),
+    [sources, setSources] = useState<MonitorSource[]>([]),
+    [form, setForm] = useState<any>({
+      equipment_id: q.get("equipment") || "",
+      station_name: "",
+      latitude: "",
+      longitude: "",
+      rgb_camera_url: "",
+      thermal_camera_url: "",
+      monitoring_enabled: true,
+    }),
+    [saving, setSaving] = useState(false),
+    [capturing, setCapturing] = useState(""),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState("");
+  async function load() {
+    const [assets, monitors] = await Promise.all([
+      api.get("/equipment"),
+      api.get("/monitoring/sources", { params: { _fresh: Date.now() } }),
+    ]);
+    setEquipment(assets.data);
+    setSources(monitors.data);
+  }
+  useEffect(() => {
+    load().catch(() => setError("Unable to load monitoring configuration."));
+  }, []);
+  const existing = sources.find((source) => source.equipment_id === form.equipment_id);
+  function choose(equipment_id: string) {
+    const source = sources.find((item) => item.equipment_id === equipment_id);
+    setForm(
+      source
+        ? {
+            equipment_id,
+            station_name: source.station_name,
+            latitude: source.latitude,
+            longitude: source.longitude,
+            rgb_camera_url: source.rgb_camera_url,
+            thermal_camera_url: source.thermal_camera_url,
+            monitoring_enabled: source.monitoring_enabled,
+          }
+        : {
+            equipment_id,
+            station_name: "",
+            latitude: "",
+            longitude: "",
+            rgb_camera_url: "",
+            thermal_camera_url: "",
+            monitoring_enabled: true,
+          },
+    );
+    setError("");
+    setNotice("");
+  }
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    setNotice("");
+    const payload = {
+      ...form,
+      latitude: Number(form.latitude),
+      longitude: Number(form.longitude),
+    };
+    try {
+      if (existing) {
+        const { equipment_id: _, ...update } = payload;
+        await api.patch(`/monitoring/sources/${existing.id}`, update);
+      } else {
+        await api.post("/monitoring/sources", payload);
+      }
+      await load();
+      setNotice("Monitoring configuration saved. Automatic capture is scheduled every 10 minutes.");
+    } catch (x: any) {
+      setError(x.response?.data?.detail || "Unable to save monitoring configuration.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function toggle(source: MonitorSource) {
+    setError("");
+    try {
+      await api.patch(`/monitoring/sources/${source.id}`, {
+        monitoring_enabled: !source.monitoring_enabled,
+      });
+      await load();
+    } catch (x: any) {
+      setError(x.response?.data?.detail || "Unable to change monitoring status.");
+    }
+  }
+  async function capture(source: MonitorSource) {
+    setCapturing(source.id);
+    setError("");
+    setNotice("");
+    try {
+      const result = await api.post(`/monitoring/sources/${source.id}/capture-now`);
+      nav(`/app/inspections/${result.data.inspection_id}`);
+    } catch (x: any) {
+      setError(x.response?.data?.detail || "Camera capture failed. Verify that both snapshot URLs are reachable by the production service.");
+      await load();
+    } finally {
+      setCapturing("");
+    }
+  }
+  return (
+    <Page
+      eye="AUTOMATIC MULTISPECTRAL MONITORING"
+      title="Power-station capture control"
+      sub="Paired RGB + thermal evidence, live weather context and model analysis every 10 minutes."
+    >
+      <div className="monitor-flow" aria-label="Automatic monitoring workflow">
+        {["RGB CAMERA", "THERMAL CAMERA", "10-MIN CAPTURE", "WEATHER CONTEXT", "MODEL + ALERT"].map((item, i) => (
+          <div key={item}><span>0{i + 1}</span><b>{item}</b>{i < 4 && <i>→</i>}</div>
+        ))}
+      </div>
+      <div className="monitoring-layout">
+        <Glass className="monitor-setup">
+          <Title eye="SITE + CAMERA SETUP" title={existing ? "Update monitoring source" : "Connect an asset"} />
+          <form onSubmit={save}>
+            <Field l="Transformer / equipment">
+              <select required value={form.equipment_id} onChange={(e) => choose(e.target.value)}>
+                <option value="">Choose an asset</option>
+                {equipment.map((item) => <option key={item.id} value={item.id}>{item.equipment_name} · {item.equipment_type}</option>)}
+              </select>
+            </Field>
+            <Field l="Power station / factory name">
+              <input required minLength={2} value={form.station_name} placeholder="KARE Substation" onChange={(e) => setForm({ ...form, station_name: e.target.value })} />
+            </Field>
+            <div className="form-grid">
+              <Field l="Latitude">
+                <input required type="number" min="-90" max="90" step="any" value={form.latitude} placeholder="12.1234" onChange={(e) => setForm({ ...form, latitude: e.target.value })} />
+              </Field>
+              <Field l="Longitude">
+                <input required type="number" min="-180" max="180" step="any" value={form.longitude} placeholder="79.1234" onChange={(e) => setForm({ ...form, longitude: e.target.value })} />
+              </Field>
+            </div>
+            <Field l="RGB camera snapshot URL">
+              <input required type="url" value={form.rgb_camera_url} placeholder="https://camera-gateway.example/rgb.jpg" onChange={(e) => setForm({ ...form, rgb_camera_url: e.target.value })} />
+            </Field>
+            <Field l="Thermal camera snapshot URL">
+              <input required type="url" value={form.thermal_camera_url} placeholder="https://camera-gateway.example/thermal.jpg" onChange={(e) => setForm({ ...form, thermal_camera_url: e.target.value })} />
+            </Field>
+            <label className="monitor-switch"><input type="checkbox" checked={form.monitoring_enabled} onChange={(e) => setForm({ ...form, monitoring_enabled: e.target.checked })} /><span>Enable automatic ten-minute monitoring</span></label>
+            <Btn type="submit" loading={saving} disabled={!form.equipment_id}>Save monitoring setup <I n="arrow" /></Btn>
+          </form>
+          <p className="monitor-note">Camera URLs must be secure snapshot endpoints reachable from the production server. Weather is fetched automatically from Open-Meteo using the saved coordinates.</p>
+          {error && <div className="error-panel">△ {error}</div>}
+          {notice && <div className="success-panel">✓ {notice}</div>}
+        </Glass>
+        <div className="monitor-source-list">
+          <Title eye="LIVE SOURCES" title="Automatic inspection streams" />
+          {sources.length ? sources.map((source) => (
+            <Glass className={`monitor-source ${source.monitoring_enabled ? "live" : "paused"}`} key={source.id}>
+              <div className="monitor-head"><span><i />{source.monitoring_enabled ? "LIVE" : "PAUSED"}</span><b>EVERY {source.capture_interval_minutes} MIN</b></div>
+              <h3>{source.equipment_name}</h3>
+              <p>{source.station_name} · {source.latitude.toFixed(4)}, {source.longitude.toFixed(4)}</p>
+              <dl><dt>Last capture</dt><dd>{date(source.last_capture_at)}</dd><dt>Next capture</dt><dd>{date(source.next_capture_at)}</dd></dl>
+              {source.last_error && <div className="source-error">LAST ERROR · {source.last_error}</div>}
+              <div className="source-actions">
+                <Btn onClick={() => capture(source)} loading={capturing === source.id}>Capture now</Btn>
+                <Btn onClick={() => toggle(source)}>{source.monitoring_enabled ? "Pause" : "Resume"}</Btn>
+                <button type="button" className="btn secondary" onClick={() => choose(source.equipment_id)}>Edit</button>
+              </div>
+            </Glass>
+          )) : <Glass><Empty title="No live sources" copy="Connect an asset and its paired cameras to start automatic inspections." /></Glass>}
+        </div>
+      </div>
     </Page>
   );
 }
@@ -1484,13 +1672,14 @@ function History() {
                   )}
                   <Badge risk={x.prediction?.risk_level} />
                 </div>
-                <span className="eyebrow">{date(x.created_at)}</span>
+                <span className="eyebrow">{date(x.created_at)} · {x.capture_mode || "MANUAL"}</span>
                 <h3>{x.equipment_name}</h3>
                 <p>
                   {x.equipment_type} · {x.model_version || "Draft"}
                 </p>
                 {x.environment && (
                   <div className="env-row">
+                    {x.environment.station_name && <span>{x.environment.station_name}</span>}
                     <span>{x.environment.ambient_temperature}°C</span>
                     <span>{x.environment.humidity}% RH</span>
                     <span>{x.environment.weather}</span>
@@ -1504,10 +1693,10 @@ function History() {
         <Glass>
           <Empty
             title="No matching inspection records"
-            copy="Adjust filters or run a new inspection."
+            copy="Adjust filters or configure automatic monitoring."
             action={
               <Link className="btn primary" to="/app/inspect">
-                Run inspection
+                Configure monitoring
               </Link>
             }
           />
@@ -1577,7 +1766,7 @@ function Detail() {
     <Page
       eye="THERMAL EVIDENCE REVIEW WORKSTATION"
       title={d.equipment.name}
-      sub={`Inspection ${d.id} · ${date(d.completed_at || d.created_at)}`}
+      sub={`Inspection ${d.id} · ${d.capture_mode} CAPTURE · ${date(d.completed_at || d.created_at)}`}
     >
       <div className={`result-hero ${tone(p?.risk_level)}`}>
         <div
@@ -1685,13 +1874,15 @@ function Detail() {
             ))}
           </Glass>
           <Glass className="environment-panel">
-            <Title eye="ENVIRONMENT EFFECT PANEL" title="Submitted context" />
+            <Title eye="ENVIRONMENT EFFECT PANEL" title={d.environment.weather_source ? "Automatically matched context" : "Submitted context"} />
             <div className="environment-chips">
               {[
                 ["temp", "Ambient", d.environment.ambient_temperature + "°C"],
                 ["weather", "Humidity", d.environment.humidity + "%"],
                 ["weather", "Weather", d.environment.weather],
                 ["time", "Time", d.environment.time_of_day],
+                ["equipment", "Station", d.environment.station_name || d.equipment.location || "—"],
+                ["model", "Source", d.environment.weather_source || "Manual"],
               ].map((x) => (
                 <div key={x[1]}>
                   <I n={x[0]} />
@@ -1778,10 +1969,10 @@ function Risk() {
         <Glass>
           <Empty
             title="No active risk signals"
-            copy="Run an inspection to populate the risk intelligence layer."
+            copy="Connect paired cameras to populate the risk intelligence layer."
             action={
               <Link className="btn primary" to="/app/inspect">
-                Run inspection
+                Configure monitoring
               </Link>
             }
           />
@@ -2197,7 +2388,7 @@ function Landing2() {
           <a href="#preview">System</a>
           <Link to="/login">Sign in</Link>
           <Link className="btn primary engine-cta" to="/register">
-            Start inspection <I n="arrow" />
+            Start monitoring <I n="arrow" />
           </Link>
         </div>
       </nav>
@@ -2218,7 +2409,7 @@ function Landing2() {
           </p>
           <div className="hero-actions">
             <Link className="btn primary engine-cta" to="/register">
-              Start inspection <I n="arrow" />
+              Start monitoring <I n="arrow" />
             </Link>
             <a className="btn secondary" href="#story">
               Explore the system
@@ -2476,7 +2667,7 @@ function Dashboard2() {
       sub="Infrastructure signal, evidence and operator readiness."
       action={
         <Link className="btn primary engine-cta" to="/app/inspect">
-          Start inspection <I n="arrow" />
+          Configure monitoring <I n="arrow" />
         </Link>
       }
     >
@@ -2504,6 +2695,10 @@ function Dashboard2() {
         <span>
           SYSTEM <b>READY</b>
         </span>
+        <i />
+        <span>
+          LIVE SOURCES <b>{d?.active_monitoring_count ?? "—"}</b>
+        </span>
       </div>
       <section className="cockpit-cluster">
         <Glass className="primary-gauge">
@@ -2526,7 +2721,7 @@ function Dashboard2() {
             <p>
               {latest
                 ? "Latest actual inspection signal"
-                : "Create equipment and run an inspection to energise the cockpit."}
+                : "Connect paired cameras to begin automatic monitoring."}
             </p>
           </div>
         </Glass>
@@ -2545,6 +2740,8 @@ function Dashboard2() {
         <Glass className="status-panel">
           <Title eye="ENGINE STATUS" title="Signal readiness" />
           {[
+            ["CAMERA SCHEDULER", d?.active_monitoring_count ? "LIVE / 10 MIN" : "STANDBY"],
+            ["WEATHER API", "CONNECTED ON CAPTURE"],
             ["THERMAL ENGINE", "ONLINE"],
             ["DATABASE", "CONNECTED"],
             ["MODEL", "BASELINE"],
@@ -2562,10 +2759,10 @@ function Dashboard2() {
         <Glass>
           <Empty
             title="No inspection signal"
-            copy="The system is standing by. Register an asset and initiate a diagnostic run."
+            copy="The system is standing by. Register an asset and connect its paired camera feeds."
             action={
               <Link className="btn primary" to="/app/inspect">
-                Start inspection
+                Configure monitoring
               </Link>
             }
           />

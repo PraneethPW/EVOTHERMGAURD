@@ -17,4 +17,4 @@ RUN mkdir -p /app/storage
 EXPOSE 8080
 
 # Railway supplies PORT when needed; the default matches the configured public domain.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = ""
     smtp_use_tls: bool = True
+    monitoring_poll_seconds: int = 30
+    weather_api_url: str = "https://api.open-meteo.com/v1/forecast"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
