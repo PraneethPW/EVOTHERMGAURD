@@ -20,7 +20,7 @@ def upgrade() -> None:
         "monitoring_sources",
         sa.Column("id",sa.String(36),primary_key=True),
         sa.Column("user_id",sa.String(36),sa.ForeignKey("users.id"),nullable=False),
-        sa.Column("equipment_id",sa.String(36),sa.ForeignKey("equipment.id"),nullable=False,unique=True),
+        sa.Column("equipment_id",sa.String(36),sa.ForeignKey("equipment.id"),nullable=False),
         sa.Column("station_name",sa.String(180),nullable=False),
         sa.Column("latitude",sa.Float(),nullable=False),
         sa.Column("longitude",sa.Float(),nullable=False),
@@ -37,10 +37,11 @@ def upgrade() -> None:
     op.create_index("ix_monitoring_sources_user_id","monitoring_sources",["user_id"])
     op.create_index("ix_monitoring_sources_equipment_id","monitoring_sources",["equipment_id"],unique=True)
     op.create_index("ix_monitoring_sources_next_capture_at","monitoring_sources",["next_capture_at"])
-    op.add_column("inspections",sa.Column("monitoring_source_id",sa.String(36),nullable=True))
-    op.add_column("inspections",sa.Column("capture_mode",capturemode,nullable=False,server_default="MANUAL"))
-    op.create_foreign_key("fk_inspections_monitoring_source","inspections","monitoring_sources",["monitoring_source_id"],["id"])
-    op.create_index("ix_inspections_monitoring_source_id","inspections",["monitoring_source_id"])
+    with op.batch_alter_table("inspections") as batch:
+        batch.add_column(sa.Column("monitoring_source_id",sa.String(36),nullable=True))
+        batch.add_column(sa.Column("capture_mode",capturemode,nullable=False,server_default="MANUAL"))
+        batch.create_foreign_key("fk_inspections_monitoring_source","monitoring_sources",["monitoring_source_id"],["id"])
+        batch.create_index("ix_inspections_monitoring_source_id",["monitoring_source_id"])
     op.add_column("inspection_environments",sa.Column("station_name",sa.String(180),nullable=True))
     op.add_column("inspection_environments",sa.Column("latitude",sa.Float(),nullable=True))
     op.add_column("inspection_environments",sa.Column("longitude",sa.Float(),nullable=True))
@@ -50,10 +51,11 @@ def upgrade() -> None:
 def downgrade() -> None:
     for column in ("weather_observed_at","weather_source","longitude","latitude","station_name"):
         op.drop_column("inspection_environments",column)
-    op.drop_index("ix_inspections_monitoring_source_id",table_name="inspections")
-    op.drop_constraint("fk_inspections_monitoring_source","inspections",type_="foreignkey")
-    op.drop_column("inspections","capture_mode")
-    op.drop_column("inspections","monitoring_source_id")
+    with op.batch_alter_table("inspections") as batch:
+        batch.drop_index("ix_inspections_monitoring_source_id")
+        batch.drop_constraint("fk_inspections_monitoring_source",type_="foreignkey")
+        batch.drop_column("capture_mode")
+        batch.drop_column("monitoring_source_id")
     op.drop_index("ix_monitoring_sources_next_capture_at",table_name="monitoring_sources")
     op.drop_index("ix_monitoring_sources_equipment_id",table_name="monitoring_sources")
     op.drop_index("ix_monitoring_sources_user_id",table_name="monitoring_sources")

@@ -3,8 +3,9 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.db.base import Base
+from app.db.session import sync_database_url
 config=context.config
-config.set_main_option("sqlalchemy.url",settings.database_url.replace('+asyncpg','').replace('+aiosqlite',''))
+config.set_main_option("sqlalchemy.url",sync_database_url(settings.database_url))
 target_metadata=Base.metadata
 def run_migrations_offline():
     context.configure(url=config.get_main_option("sqlalchemy.url"), target_metadata=target_metadata, literal_binds=True)

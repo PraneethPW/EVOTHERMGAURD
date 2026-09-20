@@ -19,6 +19,13 @@ def async_database_url(url: str) -> str:
     query = [("ssl" if key == "sslmode" else key, value) for key, value in parse_qsl(parts.query) if key != "channel_binding"]
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
+def sync_database_url(url: str) -> str:
+    """Select the installed Psycopg 3 driver for Alembic migrations."""
+    for prefix in ("postgresql+asyncpg://", "postgresql+psycopg2://", "postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url.removeprefix(prefix)
+    return url.replace("+aiosqlite", "")
+
 engine = create_async_engine(async_database_url(settings.database_url), pool_pre_ping=True)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 async def get_db():
