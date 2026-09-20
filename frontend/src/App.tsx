@@ -633,7 +633,7 @@ function Shell({ user, out }: { user: User; out: () => void }) {
           ))}
         </nav>
         <div className="model-tile">
-          <span>ACTIVE MODEL</span>
+          <span>ACTIVE ALGORITHM</span>
           <b>BASELINE HEURISTIC</b>
           <small>UNVALIDATED · DEMO</small>
         </div>
