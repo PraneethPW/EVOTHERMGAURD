@@ -1,6 +1,7 @@
 """A sequential replay source; filenames declare pairs, not real live capture."""
 import hashlib
 import io
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,33 @@ from app.models.entities import CameraSimulationCursor
 PAIR_PROTOCOL = "evothermguard-pair-v1"
 SOURCE_KIND = "dataset_backed_camera_simulation"
 IMAGE_NAME = re.compile(r"^(RGB|Thermal)_([A-Za-z0-9_-]+)\.(jpg|jpeg|png)$", re.I)
+DATASET_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def dataset_root(dataset_id: str | None = None) -> Path:
+    if dataset_id is None:
+        return Path(settings.camera_dataset_path).resolve()
+    if len(dataset_id) > 64 or not DATASET_ID.fullmatch(dataset_id):
+        raise ValueError("Invalid camera dataset ID")
+    parent = Path(settings.camera_datasets_path).resolve()
+    root = (parent / dataset_id).resolve()
+    if not root.is_relative_to(parent):
+        raise ValueError("Camera dataset resolves outside the datasets directory")
+    return root
+
+
+def dataset_info(dataset_id: str) -> dict:
+    """Only explicit provenance may identify data as synthetic or field captured."""
+    manifest = dataset_root(dataset_id) / "dataset.json"
+    if not manifest.is_file():
+        return {"dataset_id": dataset_id, "data_origin": "unspecified"}
+    with manifest.open(encoding="utf-8") as file:
+        info = json.load(file)
+    if not isinstance(info, dict) or info.get("dataset_id") != dataset_id:
+        raise ValueError("Camera dataset manifest ID does not match its directory")
+    return {"dataset_id": dataset_id, "data_origin": info.get("data_origin", "unspecified"),
+            "asset_name": info.get("asset_name", dataset_id),
+            "description": info.get("description", "")}
 
 
 @dataclass(frozen=True)
@@ -26,11 +54,11 @@ class DatasetPair:
     thermal: Path
 
 
-def dataset_pairs() -> list[DatasetPair]:
+def dataset_pairs(dataset_id: str | None = None) -> list[DatasetPair]:
     """Pair only identical IDs in the same directory; reject ambiguous catalogs."""
-    root = Path(settings.camera_dataset_path).resolve()
+    root = dataset_root(dataset_id)
     if not root.is_dir():
-        raise ValueError("Camera dataset directory does not exist; configure CAMERA_DATASET_PATH")
+        raise ValueError("Camera dataset directory does not exist")
     groups: dict[str, dict[str, Path]] = {}
     for path in sorted(root.rglob("*")):
         match = IMAGE_NAME.fullmatch(path.name)

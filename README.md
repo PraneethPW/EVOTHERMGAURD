@@ -115,11 +115,25 @@ Open `http://localhost:5173`; API health is available at `http://localhost:8000/
 
 ### Dataset-backed camera-feed simulation
 
-The backend supports one paired transformer dataset as a simulated camera source without changing either camera URL field or the UI design. Enable `CAMERA_SIMULATION_ENABLED=true`, set `CAMERA_DATASET_PATH` to your dataset directory, and run `alembic upgrade head`. Enter the same backend URL, `https://<backend-host>/camera/pair`, in both camera fields.
+The backend supports separate paired datasets for each equipment asset without changing either camera URL field or the UI design. Enable `CAMERA_SIMULATION_ENABLED=true`, set `CAMERA_DATASETS_PATH=./dataset/cameras`, and run `alembic upgrade head`. `GET /camera/datasets` lists the available feeds. Enter the **same asset-specific pair URL in both RGB and thermal camera fields**:
 
-Each capture calls the JSON pair endpoint once and acquires both immutable image URLs for the selected pair ID. Checksums/identity validation prevents mixing modalities. A persistent database cursor advances sequentially per monitoring source, wraps at the dataset end, and survives restarts. The existing ten-minute scheduler then runs validation, preprocessing, registration, fusion, analysis, and alerts with current station weather. Capture metadata explicitly identifies simulation; the weather describes the simulation inspection time, not the original dataset capture time.
+| Equipment | URL path on your backend |
+| --- | --- |
+| Transformer T-01 | `/camera/datasets/transformer-t-01/pair` |
+| Generator G-03 | `/camera/datasets/generator-g-03/pair` |
+| Cooling Pump P-07 | `/camera/datasets/pump-p-07/pair` |
+| Main Switchgear SG-12 | `/camera/datasets/switchgear-sg-12/pair` |
+| Feeder Motor M-204 | `/camera/datasets/motor-m-204/pair` |
 
-Place matching `RGB_001.jpg` / `Thermal_001.jpg` files in the same directory (flat or `Pair 001/` folders). IDs must be unique and complete; no transformer images are bundled. Use one equipment/scene per configured dataset. See [dataset camera setup](backend/dataset/camera/README.md) for naming, endpoint protocol, deployment, and cursor behavior. The feature is disabled by default. Separate real JPEG/PNG camera endpoints remain supported.
+There are **20 original synthetic paired observations** bundled (four per asset): procedural equipment illustrations paired with grayscale thermal intensity maps using the same scene geometry. They are explicitly simulation data, not real electrical photographs, calibrated temperatures, training data, or validated risk labels. Each folder includes `dataset.json` with provenance and image hashes. Downloadable dataset files can be reproduced with `backend/scripts/generate_camera_datasets.py` into an empty `backend/dataset/cameras` directory.
+
+Each capture selects once and acquires both immutable image URLs for that pair ID. Dataset, modality, pair ID and checksum checks prevent cross-asset or cross-pair substitution. A persistent database cursor advances sequentially **per dataset and monitoring source** (`001 -> 002 -> 003 -> 004 -> 001` for bundled feeds). Reading the catalog or pinned images does not advance it; browser previews have a separate cursor from scheduled inspections. Different assets can reuse pair IDs without ambiguity.
+
+Configure each equipment's own URL so inspection results remain associated with that equipment; a transformer feed must not be used to simulate a motor. All enabled monitoring sources are handled by the existing ten-minute scheduler. Each capture runs validation, preprocessing, registration, fusion, analysis and alerts with separately obtained current station weather. Simulation origin and dataset ID are persisted in image metadata, prediction evidence, weather notes and alert wording. Risk is calculated by the active model, not assigned from synthetic hotspot levels.
+
+For new equipment, create a safe lowercase dataset directory inside `CAMERA_DATASETS_PATH` (for example `transformer-t-02`), add matching `RGB_<id>.jpg` / `Thermal_<id>.jpg` (or PNG) in the same folder, and optionally add `dataset.json` with `dataset_id`, `asset_name`, `data_origin` and `description`. Its URL is `/camera/datasets/transformer-t-02/pair`. Keep images immutable during replay. Replace demo files with properly synchronized field observations when available; never manufacture an RGB match from an unrelated thermal image.
+
+The legacy `/camera/pair` route still uses `CAMERA_DATASET_PATH` for a single dataset. The feature is disabled by default until explicitly enabled; separate real JPEG/PNG camera endpoints remain supported. See [per-asset setup](backend/dataset/cameras/README.md) and [legacy protocol details](backend/dataset/camera/README.md).
 
 The application never treats operator-entered weather values as a separate dataset. Every row represents one labelled paired observation: RGB + thermal + its associated environmental context. Copy `backend/dataset/manifest.example.csv` to `backend/dataset/manifest.csv`, then add real field evidence and these required fields:
 

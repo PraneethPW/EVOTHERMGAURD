@@ -1,0 +1,68 @@
+{
+  "dataset_id": "pump-p-07",
+  "asset_name": "Cooling Pump P-07",
+  "equipment_type": "Industrial Pump",
+  "data_origin": "synthetic",
+  "generator": "scripts/generate_camera_datasets.py",
+  "description": "Original procedural equipment illustrations and matching synthetic grayscale thermal intensity maps. Simulation only; not field photographs, measured temperatures, risk labels, or model training/validation data.",
+  "alignment": "Shared scene geometry, 640x480 pixel coordinates; no sensor calibration claimed.",
+  "pair_count": 4,
+  "pairs": [
+    {
+      "pair_id": "001",
+      "synthetic_hotspot_amplitude": 5,
+      "images": {
+        "rgb": {
+          "path": "Pair 001/RGB_001.png",
+          "sha256": "d113bcffb27bba457801bbbaf814ae7f304198d425e90e41bb43bc884a73b7d8"
+        },
+        "thermal": {
+          "path": "Pair 001/Thermal_001.png",
+          "sha256": "f6a495321371432384b89dfc9567a8942c338be1968f2d5e685f71b4240c8572"
+        }
+      }
+    },
+    {
+      "pair_id": "002",
+      "synthetic_hotspot_amplitude": 80,
+      "images": {
+        "rgb": {
+          "path": "Pair 002/RGB_002.png",
+          "sha256": "f2855d0d8a2be079c8fe17533f63af54f7b55a2ec8137b63d1a8aa6dafd7a5e7"
+        },
+        "thermal": {
+          "path": "Pair 002/Thermal_002.png",
+          "sha256": "cac7ff692fcce0f0f984204418cfb5832709de3d29171e42894e8ba76dba7b56"
+        }
+      }
+    },
+    {
+      "pair_id": "003",
+      "synthetic_hotspot_amplitude": 155,
+      "images": {
+        "rgb": {
+          "path": "Pair 003/RGB_003.png",
+          "sha256": "d894759b33e07022ef84516fb569bac3176e112ae53a95bac04acb2745ed69dd"
+        },
+        "thermal": {
+          "path": "Pair 003/Thermal_003.png",
+          "sha256": "1d2150a09de2ee6cd3d443424005d78b3252ff76c8246a290b590ba305c7ddd1"
+        }
+      }
+    },
+    {
+      "pair_id": "004",
+      "synthetic_hotspot_amplitude": 205,
+      "images": {
+        "rgb": {
+          "path": "Pair 004/RGB_004.png",
+          "sha256": "a753c27f22cf71aa3d15352177f8a19986bb3e665f62013202c7b261e3f39caa"
+        },
+        "thermal": {
+          "path": "Pair 004/Thermal_004.png",
+          "sha256": "2d5722c029cf914e11f01105074c08ee5cbcf8c6afe6b722faff2adf45e057b5"
+        }
+      }
+    }
+  ]
+}
