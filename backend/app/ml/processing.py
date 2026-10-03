@@ -51,3 +51,17 @@ def localization_overlay(rgb, heatmap, learned=True):
 def baseline_saliency_overlay(rgb, thermal):
     gray=cv2.cvtColor(thermal,cv2.COLOR_BGR2GRAY)
     return localization_overlay(rgb,gray.astype(np.float32)/255.0,learned=False)
+
+
+def inspection_localization(rgb, thermal, heatmap=None, coordinate_frame="THERMAL"):
+    """Keep localization in its native modality without assuming cross-camera alignment."""
+    if coordinate_frame not in {"RGB", "THERMAL"}:
+        raise ValueError("Localization coordinate frame must be RGB or THERMAL")
+    if heatmap is None:
+        localized, region = baseline_saliency_overlay(thermal, thermal)
+        coordinate_frame = "THERMAL"
+    else:
+        canvas = rgb if coordinate_frame == "RGB" else thermal
+        localized, region = localization_overlay(canvas, heatmap, learned=True)
+    region["coordinate_frame"] = coordinate_frame
+    return localized, region

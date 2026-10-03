@@ -137,7 +137,9 @@ For future genuine recordings, add matching RGB_<id>.jpg / Thermal_<id>.jpg in a
 
 The application never treats operator-entered weather values as a separate dataset. Every row represents one labelled paired observation: RGB + thermal + its associated environmental context. Copy `backend/dataset/manifest.example.csv` to `backend/dataset/manifest.csv`, then add real field evidence and these required fields:
 
-`sample_id,rgb_path,thermal_path,ambient_temperature,humidity,weather,season,time_of_day,sun_exposure,label,split`
+`sample_id,capture_group,rgb_path,thermal_path,ambient_temperature,humidity,weather,season,time_of_day,sun_exposure,label,split`
+
+`capture_group` identifies a recording session (or an entire asset/site for stricter generalization tests). Keep all related observations in the same split. Validation rejects groups and decoded image content reused across splits, including renamed lossless copies. Curators must still review near duplicates, label correctness and RGB/thermal correspondence. All four risk classes must occur in training; environmental values must be finite. Risk labels require equipment expertise and appropriate measurements, not guesses from image brightness.
 
 Labels must be `NORMAL`, `WARNING`, `HIGH_RISK`, or `CRITICAL`; splits must be `train`, `validation`, and `test`. Add `mask_path` when a reviewed anomaly-region mask exists.
 
@@ -153,7 +155,13 @@ python -m ml_training.optimize --manifest dataset/manifest.csv
 
 Each completed run writes its real configuration, manifest hash, learning history, held-out metrics, confusion matrix, and localization scores to `backend/models/experiment-*.json`. The Model Lab reads only those artifacts; it never displays invented metrics.
 
-To activate a reviewed checkpoint, install the full training requirements in the inference image, set `MODEL_MODE=trained`, and set `MODEL_CHECKPOINT` to the saved `multimodal-fusion_env-best.pt`. Without all three conditions, the software keeps `baseline-heuristic-v1` active and reports the reason through `/api/v1/models/status`.
+Evaluation fixes macro metrics to all four risk classes, reports class support/recall and missed Critical examples, and distinguishes missing classes from successful detection. Completing a test does not automatically validate a checkpoint. Default **project targets**, configurable through training CLI arguments, are macro F1 >= 0.95, Critical recall >= 0.98 and >= 50 held-out observations per class. Passing these targets is not engineering certification, calibration or guaranteed accuracy on other assets. Report uncertainty and evaluate each asset type/site separately before operational use.
+
+NSGA-II candidates use validation only and do not evaluate the test split. Freeze the chosen parameters before evaluating the final model once; do not tune thresholds against the final test results. A trained-model load/inference failure fails the inspection rather than silently substituting a heuristic result. Baseline confidence and similarity weights are explicitly marked as uncalibrated heuristic outputs. Colorized thermal intensity is not calibrated temperature. The supplied recorded camera images have no verified four-tier risk labels: no trained model or measured accuracy is being claimed.
+
+Localization overlays remain on the model branch's native image: thermal Grad-CAM on thermal, RGB Grad-CAM on RGB. Baseline saliency also stays on thermal. An unverified RGB/thermal registration never justifies drawing thermal coordinates on an RGB photo. Optional localization masks must use the evaluated branch's coordinate system; binary masks use nearest-neighbor resize and the same augmentation flip as both inputs.
+
+To activate a reviewed checkpoint, install the full training requirements in the inference image, set `MODEL_MODE=trained`, and set `MODEL_CHECKPOINT` to the checkpoint path in its experiment JSON. Each run retains its own checkpoint rather than overwriting earlier experiments. Trained mode fails if the checkpoint/runtime is unavailable or class ordering differs; it never switches to a heuristic. Set `MODEL_MODE=demo` explicitly to run the unvalidated baseline. `/api/v1/models/status` reports the active model and its project acceptance result.
 
 ## Docker
 

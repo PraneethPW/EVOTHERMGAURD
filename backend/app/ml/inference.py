@@ -1,8 +1,7 @@
-"""Runtime model selection with an honest heuristic fallback."""
+"""Explicit runtime model selection; trained failures never become demo predictions."""
 
 from __future__ import annotations
 
-import csv
 import importlib.util
 from pathlib import Path
 
@@ -10,9 +9,10 @@ import cv2
 import numpy as np
 
 from app.core.config import settings
+from app.ml.constants import RISK_CLASSES
+from app.ml.manifest import manifest_summary
 
 
-RISK_CLASSES = ["NORMAL", "WARNING", "HIGH_RISK", "CRITICAL"]
 CATEGORIES = {
     "weather": ("clear", "cloudy", "rain", "windy", "unknown"),
     "season": ("summer", "monsoon", "winter", "spring", "unknown"),
@@ -39,33 +39,7 @@ def _environment_vector(environment: dict) -> np.ndarray:
 
 
 def _dataset_status(path_value: str) -> dict:
-    path = Path(path_value)
-    if not path.is_file():
-        return {
-            "ready": False,
-            "labelled": False,
-            "sample_count": 0,
-            "reason": "No labelled RGB/thermal manifest is configured.",
-        }
-    try:
-        with path.open(newline="", encoding="utf-8") as source:
-            rows = list(csv.DictReader(source))
-        required = {"rgb_path", "thermal_path", "label", "split"}
-        if not rows or not required.issubset(rows[0]):
-            raise ValueError("The manifest is empty or incomplete")
-        return {
-            "ready": True,
-            "labelled": True,
-            "sample_count": len(rows),
-            "context_is_associated_metadata": True,
-        }
-    except (OSError, ValueError, csv.Error) as exc:
-        return {
-            "ready": False,
-            "labelled": False,
-            "sample_count": 0,
-            "reason": str(exc),
-        }
+    return manifest_summary(path_value)
 
 
 class ModelService:
@@ -89,14 +63,16 @@ class ModelService:
             and checkpoint_exists
             and runtime_available
             and self._load_error is None
+            and self._model is not None
         )
         return {
-            "mode": "trained" if trained_active else "baseline",
+            "mode": "trained" if trained_active else "unavailable" if trained_requested else "baseline",
             "requested_mode": settings.model_mode,
-            "validated": bool(self._checkpoint_metadata.get("validated", False)) if trained_active else False,
+            "quality_gate": self._checkpoint_metadata.get("quality_gate") if trained_active else None,
+            "validated": bool((self._checkpoint_metadata.get("quality_gate") or {}).get("passed", False)) if trained_active else False,
             "version": self._checkpoint_metadata.get("experiment_id", "multimodal-cnn")
             if trained_active
-            else self.baseline_version,
+            else "trained-unavailable" if trained_requested else self.baseline_version,
             "architecture": {
                 "rgb": "ResNet-18 CNN branch",
                 "thermal": "ResNet-18 CNN branch",
@@ -114,10 +90,13 @@ class ModelService:
                 "available": trained_active,
                 "method": "true gradient-weighted class activation mapping"
                 if trained_active
+                else "unavailable: trained model not active" if trained_requested
                 else "baseline thermal saliency visualization",
             },
-            "research_state": "validated checkpoint active"
-            if trained_active and self._checkpoint_metadata.get("validated")
+            "research_state": "checkpoint meets project test-set acceptance targets"
+            if trained_active and (self._checkpoint_metadata.get("quality_gate") or {}).get("passed")
+            else "trained checkpoint has not met project acceptance targets" if trained_active
+            else "trained model not active" if trained_requested
             else "software baseline; labelled training required",
         }
 
@@ -132,6 +111,8 @@ class ModelService:
             from app.ml.model import MultimodalAnomalyNet
 
             checkpoint = torch.load(self.checkpoint_path, map_location="cpu", weights_only=True)
+            if checkpoint.get("classes") != list(RISK_CLASSES):
+                raise ValueError("Checkpoint risk-class ordering does not match this application")
             model = MultimodalAnomalyNet(
                 modality=checkpoint.get("modality", "fusion_env"),
                 dropout=float(checkpoint.get("dropout", 0.3)),
@@ -141,7 +122,7 @@ class ModelService:
             self._model = model
             self._checkpoint_metadata = {
                 key: checkpoint.get(key)
-                for key in ("validated", "metrics", "experiment_id", "image_size", "modality")
+                for key in ("validated", "quality_gate", "metrics", "experiment_id", "image_size", "modality")
             }
             self._load_error = None
             return model
@@ -171,6 +152,8 @@ class ModelService:
         context = torch.from_numpy(_environment_vector(environment)).unsqueeze(0)
         with torch.no_grad():
             probabilities = model(rgb, thermal, context).softmax(dim=1)[0]
+        if probabilities.shape != (len(RISK_CLASSES),) or not torch.isfinite(probabilities).all():
+            raise ValueError("Trained model returned invalid risk probabilities")
         prediction = int(probabilities.argmax().item())
         branch = "rgb" if self._checkpoint_metadata.get("modality") == "rgb" else "thermal"
         gradcam = GradCAM(model, branch=branch)
@@ -191,7 +174,9 @@ class ModelService:
                 "output_type": "LEARNED_MULTIMODAL_CLASSIFICATION",
                 "architecture": "RGB CNN + thermal CNN + associated environmental context",
                 "gradcam_method": "true Grad-CAM from trained CNN activations and gradients",
-                "validated": bool(self._checkpoint_metadata.get("validated")),
+                "gradcam_coordinate_frame": branch.upper(),
+                "validated": bool((self._checkpoint_metadata.get("quality_gate") or {}).get("passed", False)),
+                "confidence_type": "uncalibrated model softmax; not measured accuracy",
             },
             "_gradcam_heatmap": localization,
         }
@@ -239,6 +224,10 @@ class ModelService:
             "model_version": self.baseline_version,
             "evidence": {
                 "output_type": "HEURISTIC_RISK_SCORE",
+                "validated": False,
+                "confidence_type": "heuristic score; not a probability or measured accuracy",
+                "class_probabilities_type": "heuristic similarity weights; not calibrated probabilities",
+                "thermal_measurement": "Image intensity only; colorized pixels are not calibrated temperatures",
                 "heuristic_score": round(score, 4),
                 "thermal_intensity_mean": round(mean, 4),
                 "thermal_intensity_p95": round(p95, 4),
@@ -257,11 +246,12 @@ class ModelService:
     def predict(self, rgb_path: Path, thermal_path: Path, environment: dict) -> dict:
         if settings.model_mode.lower() == "trained":
             try:
-                return self._predict_trained(rgb_path, thermal_path, environment)
-            except Exception:
-                result = self._predict_baseline(thermal_path, environment)
-                result["evidence"]["trained_fallback_reason"] = self._load_error
+                result = self._predict_trained(rgb_path, thermal_path, environment)
+                self._load_error = None
                 return result
+            except Exception as exc:
+                self._load_error = f"{type(exc).__name__}: {exc}"
+                raise ValueError("Trained-model inference failed; no baseline result was substituted") from exc
         return self._predict_baseline(thermal_path, environment)
 
 

@@ -39,6 +39,7 @@ class TrainingProblem(ElementwiseProblem):
             workers=self.args.workers,
             seed=self.args.seed + len(self.runs),
             modality="fusion_env",
+            evaluate_test=False,
         )
         experiment = run_training(config)
         best_validation_f1 = max(x["validation_f1_macro"] for x in experiment["history"])
@@ -89,7 +90,7 @@ def main() -> None:
         "evaluations": problem.runs,
         "pareto_parameters": np.atleast_2d(result.X).tolist(),
         "pareto_objectives": np.atleast_2d(result.F).tolist(),
-        "note": "The held-out test split is reported by training runs but is never an optimization objective.",
+        "note": "Candidates never evaluate the test split. Select parameters using validation only, freeze them, then evaluate the final model once on the untouched test split.",
     }
     target = Path(args.output_dir)
     target.mkdir(parents=True, exist_ok=True)

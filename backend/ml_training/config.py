@@ -16,3 +16,7 @@ class TrainingConfig:
     seed: int = 42
     modality: str = "fusion_env"
     pretrained: bool = False
+    evaluate_test: bool = True
+    minimum_macro_f1: float = 0.95
+    minimum_critical_recall: float = 0.98
+    minimum_samples_per_class: int = 50

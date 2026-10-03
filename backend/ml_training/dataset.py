@@ -15,24 +15,12 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.transforms import functional as TF
+from torchvision.transforms import InterpolationMode
 
-from app.ml.model import ENVIRONMENT_FEATURES, RISK_CLASSES
+from app.ml.constants import ENVIRONMENT_FEATURES, RISK_CLASSES
+from app.ml.manifest import ManifestValidationError, manifest_summary, validate_rows
 
 
-REQUIRED_COLUMNS = {
-    "sample_id",
-    "rgb_path",
-    "thermal_path",
-    "ambient_temperature",
-    "humidity",
-    "weather",
-    "season",
-    "time_of_day",
-    "sun_exposure",
-    "label",
-    "split",
-}
-SPLITS = {"train", "validation", "test"}
 CATEGORIES = {
     "weather": ("clear", "cloudy", "rain", "windy", "unknown"),
     "season": ("summer", "monsoon", "winter", "spring", "unknown"),
@@ -62,83 +50,8 @@ def encode_environment(row: pd.Series | dict) -> torch.Tensor:
     return result
 
 
-class ManifestValidationError(ValueError):
-    pass
-
-
 def validate_manifest(frame: pd.DataFrame, root: Path) -> None:
-    missing = sorted(REQUIRED_COLUMNS.difference(frame.columns))
-    if missing:
-        raise ManifestValidationError(f"Manifest is missing columns: {', '.join(missing)}")
-    if frame.empty:
-        raise ManifestValidationError("Manifest contains no labelled samples")
-    if frame["sample_id"].astype(str).duplicated().any():
-        raise ManifestValidationError("sample_id values must be unique")
-    invalid_labels = sorted(set(frame["label"].astype(str).str.upper()) - set(RISK_CLASSES))
-    if invalid_labels:
-        raise ManifestValidationError(f"Unsupported labels: {', '.join(invalid_labels)}")
-    invalid_splits = sorted(set(frame["split"].map(_normalise)) - SPLITS)
-    if invalid_splits:
-        raise ManifestValidationError(f"Unsupported splits: {', '.join(invalid_splits)}")
-    missing_splits = sorted(SPLITS - set(frame["split"].map(_normalise)))
-    if missing_splits:
-        raise ManifestValidationError(
-            f"Manifest must include held-out splits: {', '.join(missing_splits)}"
-        )
-    for field in ("ambient_temperature", "humidity"):
-        values = pd.to_numeric(frame[field], errors="coerce")
-        if values.isna().any():
-            raise ManifestValidationError(f"{field} contains non-numeric values")
-    humidity = frame["humidity"].astype(float)
-    if ((humidity < 0) | (humidity > 100)).any():
-        raise ManifestValidationError("humidity must be between 0 and 100")
-    missing_files: list[str] = []
-    for field in ("rgb_path", "thermal_path"):
-        for value in frame[field].astype(str):
-            path = Path(value)
-            resolved = path if path.is_absolute() else root / path
-            if not resolved.is_file():
-                missing_files.append(str(resolved))
-                if len(missing_files) == 10:
-                    break
-    if missing_files:
-        raise ManifestValidationError(
-            "Referenced evidence files are missing (first 10): " + ", ".join(missing_files)
-        )
-
-
-def manifest_summary(manifest_path: str | Path) -> dict:
-    path = Path(manifest_path).resolve()
-    if not path.is_file():
-        return {
-            "ready": False,
-            "sample_count": 0,
-            "labelled": False,
-            "reason": "No labelled manifest has been supplied.",
-        }
-    try:
-        frame = pd.read_csv(path)
-        validate_manifest(frame, path.parent)
-    except (OSError, pd.errors.ParserError, ManifestValidationError) as exc:
-        return {
-            "ready": False,
-            "sample_count": 0,
-            "labelled": False,
-            "reason": str(exc),
-        }
-    return {
-        "ready": True,
-        "sample_count": int(len(frame)),
-        "labelled": True,
-        "split_counts": {
-            split: int((frame["split"].map(_normalise) == split).sum()) for split in SPLITS
-        },
-        "class_counts": {
-            label: int((frame["label"].str.upper() == label).sum())
-            for label in RISK_CLASSES
-        },
-        "context_is_associated_metadata": True,
-    }
+    validate_rows(frame.to_dict("records"), root)
 
 
 class MultimodalDataset(Dataset):
@@ -174,7 +87,8 @@ class MultimodalDataset(Dataset):
         thermal = Image.open(self._path(str(row.thermal_path))).convert("L")
         rgb = TF.resize(rgb, [self.image_size, self.image_size], antialias=True)
         thermal = TF.resize(thermal, [self.image_size, self.image_size], antialias=True)
-        if self.augment and bool(torch.rand(()) < 0.5):
+        flipped = self.augment and bool(torch.rand(()) < 0.5)
+        if flipped:
             rgb, thermal = TF.hflip(rgb), TF.hflip(thermal)
         rgb_tensor = TF.normalize(
             TF.to_tensor(rgb), mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
@@ -185,14 +99,16 @@ class MultimodalDataset(Dataset):
             "rgb": rgb_tensor,
             "thermal": thermal_tensor,
             "environment": encode_environment(row),
-            "label": self.label_to_index[str(row.label).upper()],
+            "label": self.label_to_index[str(row.label).strip().upper()],
             "mask": torch.zeros((1, self.image_size, self.image_size), dtype=torch.float32),
             "has_mask": False,
         }
         mask_path = str(row.get("mask_path", "")).strip()
         if mask_path and mask_path.lower() != "nan":
             mask = Image.open(self._path(mask_path)).convert("L")
-            mask = TF.resize(mask, [self.image_size, self.image_size], antialias=False)
+            mask = TF.resize(mask, [self.image_size, self.image_size], interpolation=InterpolationMode.NEAREST)
+            if flipped:
+                mask = TF.hflip(mask)
             sample["mask"] = (TF.to_tensor(mask) > 0.5).float()
             sample["has_mask"] = True
         return sample
@@ -200,7 +116,7 @@ class MultimodalDataset(Dataset):
 
 def class_weights(dataset: MultimodalDataset) -> torch.Tensor:
     labels: Iterable[int] = (
-        dataset.label_to_index[str(value).upper()] for value in dataset.frame["label"]
+        dataset.label_to_index[str(value).strip().upper()] for value in dataset.frame["label"]
     )
     counts = np.bincount(list(labels), minlength=len(RISK_CLASSES)).astype(np.float32)
     counts[counts == 0] = 1

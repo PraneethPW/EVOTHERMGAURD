@@ -17,8 +17,7 @@ from torch.nn import functional as F
 from torchvision.models import ResNet18_Weights, resnet18
 
 
-RISK_CLASSES = ("NORMAL", "WARNING", "HIGH_RISK", "CRITICAL")
-ENVIRONMENT_FEATURES = 22
+from app.ml.constants import ENVIRONMENT_FEATURES, RISK_CLASSES
 Modality = Literal["rgb", "thermal", "fusion", "fusion_env"]
 
 

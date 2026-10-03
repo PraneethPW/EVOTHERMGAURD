@@ -17,6 +17,7 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
 from app.ml.model import GradCAM, MultimodalAnomalyNet, RISK_CLASSES
+from app.ml.quality import quality_gate
 from ml_training.config import TrainingConfig
 from ml_training.dataset import MultimodalDataset, class_weights, manifest_summary
 from ml_training.evaluate import evaluate, localization_metrics
@@ -70,7 +71,7 @@ def classify(model, loader, criterion, device) -> tuple[float, dict]:
 def evaluate_localization(model, loader, device) -> dict:
     predicted_masks, target_masks = [], []
     model.eval()
-    gradcam = GradCAM(model, branch="thermal")
+    gradcam = GradCAM(model, branch="rgb" if model.modality == "rgb" else "thermal")
     try:
         for batch in loader:
             mask_flags = batch["has_mask"]
@@ -110,7 +111,8 @@ def run_training(config: TrainingConfig) -> dict:
     validation_set = MultimodalDataset(
         config.manifest_path, "validation", config.image_size
     )
-    test_set = MultimodalDataset(config.manifest_path, "test", config.image_size)
+    if set(train_set.frame["label"].str.strip().str.upper()) != set(RISK_CLASSES):
+        raise ValueError("Training requires expert-labelled examples of all four risk classes")
     loader_args = {
         "batch_size": config.batch_size,
         "num_workers": config.workers,
@@ -118,7 +120,6 @@ def run_training(config: TrainingConfig) -> dict:
     }
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
     validation_loader = DataLoader(validation_set, shuffle=False, **loader_args)
-    test_loader = DataLoader(test_set, shuffle=False, **loader_args)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MultimodalAnomalyNet(
@@ -133,7 +134,8 @@ def run_training(config: TrainingConfig) -> dict:
 
     output_dir = Path(config.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = output_dir / f"multimodal-{config.modality}-best.pt"
+    experiment_id = f"{config.modality}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    checkpoint_path = output_dir / f"multimodal-{experiment_id}-best.pt"
     best_f1, stale_epochs, history = -1.0, 0, []
     for epoch in range(1, config.epochs + 1):
         training_loss = train_epoch(model, train_loader, criterion, optimizer, device)
@@ -169,28 +171,41 @@ def run_training(config: TrainingConfig) -> dict:
 
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["state_dict"])
-    test_loss, test_metrics = classify(model, test_loader, criterion, device)
-    test_metrics["localization"] = evaluate_localization(model, test_loader, device)
+    test_loss, test_metrics = None, {}
+    if config.evaluate_test:
+        test_set = MultimodalDataset(config.manifest_path, "test", config.image_size)
+        test_loader = DataLoader(test_set, shuffle=False, **loader_args)
+        test_loss, test_metrics = classify(model, test_loader, criterion, device)
+        test_metrics["localization"] = evaluate_localization(model, test_loader, device)
+    acceptance = quality_gate(
+        test_metrics, minimum_macro_f1=config.minimum_macro_f1,
+        minimum_critical_recall=config.minimum_critical_recall,
+        minimum_samples_per_class=config.minimum_samples_per_class,
+    )
     manifest_hash = hashlib.sha256(Path(config.manifest_path).read_bytes()).hexdigest()
     experiment = {
-        "id": f"{config.modality}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}",
+        "id": experiment_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "completed",
-        "research_claim": "held-out evaluation",
+        "research_claim": "held-out evaluation" if config.evaluate_test else "validation-only candidate; test split untouched",
+        "held_out_evaluated": config.evaluate_test,
+        "quality_gate": acceptance,
         "modality": config.modality,
         "architecture": "dual-resnet18-plus-environment-mlp",
         "dataset": {**summary, "manifest_sha256": manifest_hash},
         "config": asdict(config),
         "epochs_completed": len(history),
         "history": history,
-        "test_loss": round(test_loss, 6),
-        "metrics": test_metrics,
+        "test_loss": round(test_loss, 6) if test_loss is not None else None,
+        "metrics": test_metrics if config.evaluate_test else None,
         "checkpoint": str(checkpoint_path),
     }
     experiment_path = output_dir / f"experiment-{experiment['id']}.json"
     experiment_path.write_text(json.dumps(experiment, indent=2), encoding="utf-8")
-    checkpoint["validated"] = True
-    checkpoint["metrics"] = test_metrics
+    checkpoint["validated"] = acceptance["passed"]
+    checkpoint["held_out_evaluated"] = config.evaluate_test
+    checkpoint["quality_gate"] = acceptance
+    checkpoint["metrics"] = test_metrics if config.evaluate_test else None
     checkpoint["experiment_id"] = experiment["id"]
     torch.save(checkpoint, checkpoint_path)
     return experiment
@@ -211,6 +226,9 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--workers", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--pretrained", action="store_true")
+    parser.add_argument("--minimum-macro-f1", type=float, default=0.95)
+    parser.add_argument("--minimum-critical-recall", type=float, default=0.98)
+    parser.add_argument("--minimum-samples-per-class", type=int, default=50)
     args = parser.parse_args()
     return TrainingConfig(
         manifest_path=args.manifest,
@@ -224,6 +242,9 @@ def parse_args() -> TrainingConfig:
         workers=args.workers,
         seed=args.seed,
         pretrained=args.pretrained,
+        minimum_macro_f1=args.minimum_macro_f1,
+        minimum_critical_recall=args.minimum_critical_recall,
+        minimum_samples_per_class=args.minimum_samples_per_class,
     )
 
 

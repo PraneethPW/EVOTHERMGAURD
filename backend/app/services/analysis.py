@@ -8,9 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ml.inference import model_service
 from app.ml.processing import (
-    baseline_saliency_overlay,
     fuse,
-    localization_overlay,
+    inspection_localization,
     preprocess,
     register,
 )
@@ -115,10 +114,13 @@ class InspectionAnalysisService:
         self.stage(inspection.id, "inference", "complete")
         self.stage(inspection.id, "gradcam")
         if heatmap is not None:
-            localized, localization = localization_overlay(rgb, heatmap, learned=True)
+            localized, localization = inspection_localization(
+                rgb, thermal, heatmap,
+                result["evidence"].get("gradcam_coordinate_frame", "THERMAL"),
+            )
             gradcam_label = "True Grad-CAM / inspect highlighted area"
         else:
-            localized, localization = baseline_saliency_overlay(rgb, aligned)
+            localized, localization = inspection_localization(rgb, thermal)
             gradcam_label = "Baseline thermal saliency / not CNN Grad-CAM"
         cam_path = root / "gradcam" / "localized_anomaly_region.jpg"
         cv2.imwrite(str(cam_path), localized)
