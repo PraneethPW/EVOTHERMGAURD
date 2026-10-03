@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     monitoring_poll_seconds: int = 30
     weather_api_url: str = "https://api.open-meteo.com/v1/forecast"
+    camera_simulation_enabled: bool = False
+    camera_dataset_path: str = "./dataset/camera"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
