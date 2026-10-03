@@ -106,7 +106,8 @@ class InspectionAnalysisService:
             assessment_subject += " (dataset simulation)"
             result["evidence"]["capture_source"] = {
                 key: source_metadata[key] for key in
-                ("source", "pair_id", "pair_selected_at", "inspection_captured_at", "dataset_id", "data_origin")
+                ("source", "pair_id", "pair_selected_at", "inspection_captured_at", "dataset_id", "data_origin",
+                 "source_url", "recorded_equipment_type", "synchronization", "thermal_format")
                 if key in source_metadata
             }
         heatmap = result.pop("_gradcam_heatmap", None)

@@ -1,66 +1,108 @@
 {
   "dataset_id": "transformer-t-01",
   "asset_name": "Transformer T-01",
-  "equipment_type": "Distribution Transformer",
-  "data_origin": "synthetic",
-  "generator": "scripts/generate_camera_datasets.py",
-  "description": "Original procedural equipment illustrations and matching synthetic grayscale thermal intensity maps. Simulation only; not field photographs, measured temperatures, risk labels, or model training/validation data.",
-  "alignment": "Shared scene geometry, 640x480 pixel coordinates; no sensor calibration claimed.",
-  "pair_count": 4,
+  "data_origin": "camera_recorded",
+  "source_dataset": "InspecSafe-V1",
+  "source_url": "https://huggingface.co/datasets/Tetrabot2026/InspecSafe-V1",
+  "source_revision": "f3cb7d3e7827c1afc1c5bfd0524257984bba46ab",
+  "license": "CC BY 4.0",
+  "authors": "TetraBOT / InspecSafe authors (see source dataset and paper arXiv:2601.21173)",
+  "recorded_equipment_type": "Current Transformer",
+  "source_waypoint": "power-Level04-Wheeled-000419",
+  "videos": {
+    "rgb": {
+      "archive_member": "DATA_PATH/test/Other_modalities/power-Level04-Wheeled-000419/power-Level04-Wheeled-000419-visible.mp4",
+      "sha256": "dd8169265ee90581e0979f7487603a35ef5f42c66df5cd7741d27b2f7228c982"
+    },
+    "thermal": {
+      "archive_member": "DATA_PATH/test/Other_modalities/power-Level04-Wheeled-000419/power-Level04-Wheeled-000419-infrared.mp4",
+      "sha256": "e52b8273c8a8fd5ee5a232e6fd182b14bde36b869561b00b4934d8a48b8cd489"
+    }
+  },
+  "description": "Original visible and infrared camera recordings of Current Transformer. Dataset scene mapped to demo asset Transformer T-01; not a recording of the user station or this named physical asset.",
+  "synchronization": {
+    "status": "hardware_synchronization_unverified",
+    "selection": "same original waypoint and recording sequence",
+    "method": "Matching relative video times; infrared frame has no visible capture-time clock.",
+    "thermal_time_offset_seconds": 0,
+    "limitation": "Same scene and recording session; exact simultaneous exposure has not been established. Do not use as certified synchronized ground truth."
+  },
+  "thermal_format": "Original camera colorized infrared video frames, not radiometric arrays. No temperatures inferred from pixel colors.",
+  "transformations": "Video decoding and JPEG quality 95 only. No synthesis, recoloring, fusion, cropping, or artificial fault generation.",
   "pairs": [
     {
       "pair_id": "001",
-      "synthetic_hotspot_amplitude": 5,
       "images": {
         "rgb": {
-          "path": "Pair 001/RGB_001.png",
-          "sha256": "d34fddda246927e3e28161eacc90cd441e782e9a08bb7e6682e1ec132b234373"
+          "path": "Pair001/RGB_001.jpg",
+          "sha256": "1257186b6298e91b78aa1fc7172abe9e458718a4cd46d920af8ecf82864917e6",
+          "video_time_seconds": 1,
+          "video_frame_index": 25,
+          "video_fps": 25.0
         },
         "thermal": {
-          "path": "Pair 001/Thermal_001.png",
-          "sha256": "087310017370c2fe8c39e194f4d43bc4063f75ce1986ae69076756765129de6e"
+          "path": "Pair001/Thermal_001.jpg",
+          "sha256": "b27dfa4c889014a74e5c8aeeb8ea109db4eb35558638a89847cc92d26287cbde",
+          "video_time_seconds": 1,
+          "video_frame_index": 25,
+          "video_fps": 25.0
         }
       }
     },
     {
       "pair_id": "002",
-      "synthetic_hotspot_amplitude": 80,
       "images": {
         "rgb": {
-          "path": "Pair 002/RGB_002.png",
-          "sha256": "032daa6aeb9692b3fc60cf62a94c93019a3f5d8717c3b022167b1f08cf97d1b8"
+          "path": "Pair002/RGB_002.jpg",
+          "sha256": "5aa9a1ea57fb0756cabc7e8a338b89402585d156d9bdfbc0467d22b880800502",
+          "video_time_seconds": 3,
+          "video_frame_index": 75,
+          "video_fps": 25.0
         },
         "thermal": {
-          "path": "Pair 002/Thermal_002.png",
-          "sha256": "036451522c90af79116623922f8a3e357d5f5b54c1bab4958a4b3b59dc346b7b"
+          "path": "Pair002/Thermal_002.jpg",
+          "sha256": "d07008c194efd3e895ab0975dd0e44a7c63db2606e25e38d97eec951dfe39c4d",
+          "video_time_seconds": 3,
+          "video_frame_index": 75,
+          "video_fps": 25.0
         }
       }
     },
     {
       "pair_id": "003",
-      "synthetic_hotspot_amplitude": 155,
       "images": {
         "rgb": {
-          "path": "Pair 003/RGB_003.png",
-          "sha256": "45027c7609cd81c89d58e0f735ab090d9835abda4c65a4533bf3c29ec4ade5bb"
+          "path": "Pair003/RGB_003.jpg",
+          "sha256": "1b8391a2918b4c30dbdccac8742fc0feaa6bacd3b4a23b579157263f29b6e8fb",
+          "video_time_seconds": 5,
+          "video_frame_index": 125,
+          "video_fps": 25.0
         },
         "thermal": {
-          "path": "Pair 003/Thermal_003.png",
-          "sha256": "f71b33696f474d6aef0f2ee896133462365d47a8cbae8c12d2708b74ed7ec837"
+          "path": "Pair003/Thermal_003.jpg",
+          "sha256": "1ab44b29e2933d1804cd4b49c3086843515cc007c5f0bf9870e429a2f4768615",
+          "video_time_seconds": 5,
+          "video_frame_index": 125,
+          "video_fps": 25.0
         }
       }
     },
     {
       "pair_id": "004",
-      "synthetic_hotspot_amplitude": 205,
       "images": {
         "rgb": {
-          "path": "Pair 004/RGB_004.png",
-          "sha256": "4454d7513f166fb471efacf4741c1679e1913c26f4833345fa429919068a3aa4"
+          "path": "Pair004/RGB_004.jpg",
+          "sha256": "e7fe0007741ed39861c18b530095a2c7f7fad271e34442fbdd1e73dc1ea1c962",
+          "video_time_seconds": 7,
+          "video_frame_index": 175,
+          "video_fps": 25.0
         },
         "thermal": {
-          "path": "Pair 004/Thermal_004.png",
-          "sha256": "b8d291ae6ca68e85d26d5359cb3d28aa47d9168770722b58031c036fa42f39b1"
+          "path": "Pair004/Thermal_004.jpg",
+          "sha256": "b18afd904f75a48b5c980bb32c30025a3188c79499abfadd698fe4643103baba",
+          "video_time_seconds": 7,
+          "video_frame_index": 175,
+          "video_fps": 25.0
         }
       }
     }

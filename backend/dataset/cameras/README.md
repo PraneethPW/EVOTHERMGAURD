@@ -1,25 +1,25 @@
-# Per-asset camera datasets
+# Recorded equipment camera replay
 
-These five datasets are original **synthetic simulation fixtures** created for this project. There are four paired observations per asset (20 pairs, 40 PNG files). RGB frames are procedural equipment illustrations; matching thermal frames are simulated grayscale intensity maps, not radiometric measurements. They share equipment geometry and pixel coordinates. They must not be used as evidence of real electrical faults, model accuracy, or real-world safety.
+The bundled feeds contain **12 observations / 24 real camera-recorded images** extracted from the original [InspecSafe-V1 dataset](https://huggingface.co/datasets/Tetrabot2026/InspecSafe-V1), revision f3cb7d3e7827c1afc1c5bfd0524257984bba46ab, test.tar.gz. Attribution: TetraBOT and the InspecSafe authors, [paper](https://arxiv.org/abs/2601.21173), CC BY 4.0. No synthetic equipment images are bundled.
 
-Enable `CAMERA_SIMULATION_ENABLED=true` and set `CAMERA_DATASETS_PATH=./dataset/cameras` from the backend working directory. Keep the existing database and apply `alembic upgrade head`; the cursor table is additive.
+These are recorded industrial inspection scenes replayed by an API. They are not real-time cameras, recordings of the configured station, or photographs of the demo asset IDs. Each dataset.json identifies the actual equipment type, original waypoint, original video members and hashes, extraction times, output hashes, license and timing limitations.
 
-Select the corresponding equipment in the monitoring form and paste the same full backend URL into both fields:
+| Configured demo asset | Actual equipment | Status | URL path |
+| --- | --- | --- | --- |
+| Transformer T-01 | Current transformer, not a distribution transformer | 4 observations | /camera/datasets/transformer-t-01/pair |
+| Main Switchgear SG-12 | Electrical distribution cabinet exterior | 4 observations | /camera/datasets/switchgear-sg-12/pair |
+| Feeder Motor M-204 | Industrial motor | 4 observations | /camera/datasets/motor-m-204/pair |
+| Cooling Pump P-07 | No verified matching recordings installed | Unavailable (503) | /camera/datasets/pump-p-07/pair |
+| Generator G-03 | No verified matching recordings installed | Unavailable (503) | /camera/datasets/generator-g-03/pair |
 
-| Asset | Pair URL suffix |
-| --- | --- |
-| Transformer T-01 | /camera/datasets/transformer-t-01/pair |
-| Generator G-03 | /camera/datasets/generator-g-03/pair |
-| Cooling Pump P-07 | /camera/datasets/pump-p-07/pair |
-| Main Switchgear SG-12 | /camera/datasets/switchgear-sg-12/pair |
-| Feeder Motor M-204 | /camera/datasets/motor-m-204/pair |
+Both modalities come from the same original waypoint's recording streams. Transformer/cabinet frames use matching relative video times. Motor infrared frames use +1 second to match the displayed clocks to the nearest second. **Hardware synchronization and exact simultaneous exposures are unverified.** These observations demonstrate acquisition and registration; they are not certified synchronized research ground truth. Fields of view differ, so registration is still required.
 
-Every inspection fetches one JSON selection, then two pinned image URLs from that same dataset and pair. Each source cycles independently every ten minutes. The risk result is produced by the existing pipeline and active model, not a predefined label. Current weather uses the configured station coordinates and simulation inspection time. Previews use their own sequence and do not consume scheduled-source selections. Pair identity and file SHA-256 hashes are checked; failed acquisition does not substitute another image. A failed capture consumes its selection. Do not modify dataset files while captures are running.
+Thermal images are original colorized infrared frames with camera overlays, not radiometric temperature arrays. No visible image was generated from a thermal frame and no thermal image was generated from a visible photograph. Decoding and JPEG quality 95 are the only transformations. The existing baseline risk algorithm remains unvalidated; outputs are demonstrations, not calibrated temperatures or verified fault diagnoses. No new model training or accuracy validation was performed with these files.
 
-`GET /camera/datasets` lists readiness, pair counts, data origin and generated pair URLs. Pair selection and pinned image routes are public only when simulation is enabled; do not place sensitive camera data behind these demonstration routes.
+Enable CAMERA_SIMULATION_ENABLED=true, set CAMERA_DATASETS_PATH=./dataset/cameras and CAMERA_PUBLIC_BASE_URL to the public HTTPS backend origin, then apply alembic upgrade head. Enter the same complete available asset URL in both existing RGB/thermal fields. GET /camera/datasets reports readiness, pair counts and provenance without advancing selections.
 
-Each dataset has `dataset.json` with provenance and image hashes. The source generator `scripts/generate_camera_datasets.py` reproduces the datasets, refusing to overwrite existing directories. New custom assets can use a directory slug such as `transformer-t-02` and matching RGB/Thermal filenames. Pair IDs are unique within a dataset and may repeat across different assets. The old `/camera/pair` still reads the separate legacy `CAMERA_DATASET_PATH` directory.
+Every capture selects once, then fetches two pinned images for that pair. Dataset IDs, modality headers and hashes prevent cross-asset substitution. Database cursors cycle 001,002,003,004,001 independently for each source at the existing ten-minute interval; previews use separate cursors. Unavailable assets fail explicitly, without substituting synthetic or unrelated images.
 
-Synthetic files are bundled in the deployment image and persist across redeploys. Selection cursors are stored in PostgreSQL. Inspection evidence still uses the configured storage system; the existing ephemeral-storage limitation applies on Railway unless durable storage is configured.
+Weather uses configured station coordinates and the replay inspection timestamp, not historical recording weather. Source, actual equipment type and synchronization limitations are preserved in inspection metadata. The frontend layout and both camera URL fields remain unchanged.
 
-On Railway or another TLS-terminating proxy, set `CAMERA_PUBLIC_BASE_URL` to the public HTTPS backend origin (without `/api/v1`), so generated pair and image URLs retain HTTPS.
+Add future genuine synchronized observations as RGB_<id>.jpg and Thermal_<id>.jpg in the same folder. Retain dataset.json attribution and per-observation timing evidence; remove availability_error only after installing verified data. Keep files immutable during captures. The legacy /camera/pair reads CAMERA_DATASET_PATH and has no default images.

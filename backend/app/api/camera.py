@@ -42,13 +42,14 @@ async def camera_datasets(request: Request, response: Response):
         for folder in sorted(root.iterdir()) if root.is_dir() else []:
             if not folder.is_dir() or not DATASET_ID.fullmatch(folder.name):
                 continue
+            info = {"dataset_id": folder.name}
             try:
                 info = dataset_info(folder.name)
                 pairs = dataset_pairs(folder.name)
                 entries.append({**info, "ready": True, "pair_count": len(pairs)})
             except (ValueError, OSError):
-                entries.append({"dataset_id": folder.name, "ready": False, "pair_count": 0,
-                                "error": "Dataset missing, incomplete, or invalid"})
+                entries.append({**info, "ready": False, "pair_count": 0,
+                                "error": info.get("availability_error", "Dataset missing, incomplete, or invalid")})
         return entries
     entries = await asyncio.to_thread(catalog)
     for entry in entries:
@@ -59,8 +60,10 @@ async def camera_datasets(request: Request, response: Response):
 
 async def pair_descriptor(request, response, db, stream, dataset_id=None):
     try:
-        pairs = await asyncio.to_thread(dataset_pairs, dataset_id)
         info = await asyncio.to_thread(dataset_info, dataset_id) if dataset_id else {}
+        if info.get("availability_error"):
+            raise ValueError(info["availability_error"])
+        pairs = await asyncio.to_thread(dataset_pairs, dataset_id)
         pair = await select_pair(db, pairs, stream)
         rgb, thermal = await asyncio.gather(
             asyncio.to_thread(image_bytes, pair.rgb),

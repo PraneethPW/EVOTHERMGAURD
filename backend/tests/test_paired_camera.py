@@ -315,7 +315,17 @@ async def test_named_datasets_catalog_cursors_and_pipeline(simulation, monkeypat
     monkeypatch.setattr(settings, "camera_datasets_path", str(root))
     catalog = (await simulation.client.get("/camera/datasets")).json()["datasets"]
     assert len(catalog) == 5
-    assert all(e["ready"] and e["pair_count"] == 4 and e["data_origin"] == "synthetic" for e in catalog)
+    missing = [e for e in catalog if not e["ready"]]
+    assert {e["dataset_id"] for e in missing} == {"pump-p-07", "generator-g-03"}
+    for entry in missing:
+        assert entry["data_origin"] == "unavailable" and entry["pair_count"] == 0
+        response = await simulation.client.get(entry["pair_url"])
+        assert response.status_code == 503
+        assert "Verified matching" in response.json()["detail"]
+    catalog = [e for e in catalog if e["ready"]]
+    assert len(catalog) == 3
+    assert all(e["pair_count"] == 4 and e["data_origin"] == "camera_recorded" for e in catalog)
+    assert all(e["synchronization"]["status"] == "hardware_synchronization_unverified" for e in catalog)
     await simulation.client.get("/camera/datasets")
     for entry in catalog:
         url = entry["pair_url"]
@@ -345,7 +355,9 @@ async def test_named_datasets_catalog_cursors_and_pipeline(simulation, monkeypat
             assert inspection.status == "COMPLETED" and inspection.equipment_id == key
             prediction = await db.scalar(select(Prediction).where(Prediction.inspection_id == inspection_id))
             capture = prediction.explanation_metadata["capture_source"]
-            assert (capture["dataset_id"], capture["pair_id"], capture["data_origin"]) == (key, "001", "synthetic")
+            assert (capture["dataset_id"], capture["pair_id"], capture["data_origin"]) == (key, "001", "camera_recorded")
+            assert capture["source_url"] == entry["source_url"]
+            assert capture["synchronization"] == entry["synchronization"]
             source = await db.get(MonitoringSource, "source-"+key)
             assert source.next_capture_at-source.last_capture_at == timedelta(minutes=10)
         manifest = json.loads((root/key/"dataset.json").read_text())
@@ -394,7 +406,7 @@ async def test_proxy_uses_explicit_https_public_origin(simulation, monkeypatch):
     from pathlib import Path
     monkeypatch.setattr(settings, "camera_public_base_url", "https://camera.test")
     monkeypatch.setattr(settings, "camera_datasets_path", str(Path(__file__).resolve().parents[1]/"dataset/cameras"))
-    entry = (await simulation.client.get('/camera/datasets')).json()['datasets'][0]
+    entry = next(e for e in (await simulation.client.get('/camera/datasets')).json()['datasets'] if e['ready'])
     assert entry['pair_url'].startswith('https://camera.test/')
     pair = (await simulation.client.get(entry['pair_url'])).json()
     assert all(im['url'].startswith('https://camera.test/') for im in pair['images'].values())

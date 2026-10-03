@@ -1,68 +1,7 @@
 {
   "dataset_id": "generator-g-03",
   "asset_name": "Generator G-03",
-  "equipment_type": "Generator",
-  "data_origin": "synthetic",
-  "generator": "scripts/generate_camera_datasets.py",
-  "description": "Original procedural equipment illustrations and matching synthetic grayscale thermal intensity maps. Simulation only; not field photographs, measured temperatures, risk labels, or model training/validation data.",
-  "alignment": "Shared scene geometry, 640x480 pixel coordinates; no sensor calibration claimed.",
-  "pair_count": 4,
-  "pairs": [
-    {
-      "pair_id": "001",
-      "synthetic_hotspot_amplitude": 5,
-      "images": {
-        "rgb": {
-          "path": "Pair 001/RGB_001.png",
-          "sha256": "a20f8ae0c12fc5858e9aa7a259ba771fb625e559fa14a00cb158ae0c32228199"
-        },
-        "thermal": {
-          "path": "Pair 001/Thermal_001.png",
-          "sha256": "dcfae7e0d6f95b0fa94b4c95ffc8f37786075ed85f658f9ca40817b8deaf2d13"
-        }
-      }
-    },
-    {
-      "pair_id": "002",
-      "synthetic_hotspot_amplitude": 80,
-      "images": {
-        "rgb": {
-          "path": "Pair 002/RGB_002.png",
-          "sha256": "8d558d348478971cfb236ca9c14aa238fb4b5b0952799a936f5b2219bbfce338"
-        },
-        "thermal": {
-          "path": "Pair 002/Thermal_002.png",
-          "sha256": "68eaf864e5dca63645836b5154cecd622ab7af312642c78d522888f67f6672d8"
-        }
-      }
-    },
-    {
-      "pair_id": "003",
-      "synthetic_hotspot_amplitude": 155,
-      "images": {
-        "rgb": {
-          "path": "Pair 003/RGB_003.png",
-          "sha256": "ad91f93a75b6b6d8fc9b625e21fada4ea3a01812bc7476da8e45a5b08e26904a"
-        },
-        "thermal": {
-          "path": "Pair 003/Thermal_003.png",
-          "sha256": "f31adf7876134849549b2c2e07575e17ce9528b7cbb7fae6c2b7c20299b0c864"
-        }
-      }
-    },
-    {
-      "pair_id": "004",
-      "synthetic_hotspot_amplitude": 205,
-      "images": {
-        "rgb": {
-          "path": "Pair 004/RGB_004.png",
-          "sha256": "30ebca7eb0fa8fbf12cb4ab31ca0210eef926bbc0444c2debbda62c16dd91c30"
-        },
-        "thermal": {
-          "path": "Pair 004/Thermal_004.png",
-          "sha256": "756d65a518579da2f7ed3c4f83818dfc302b1dd01b1e32197651da8c8d9baa09"
-        }
-      }
-    }
-  ]
+  "data_origin": "unavailable",
+  "description": "No publicly downloadable matching RGB/thermal observations of this equipment type have been verified. Synthetic data removed; acquisition is unavailable until real pairs are supplied.",
+  "availability_error": "Verified matching visible and thermal equipment recordings are not installed."
 }

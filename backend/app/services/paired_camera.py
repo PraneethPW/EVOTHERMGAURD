@@ -42,9 +42,12 @@ def dataset_info(dataset_id: str) -> dict:
         info = json.load(file)
     if not isinstance(info, dict) or info.get("dataset_id") != dataset_id:
         raise ValueError("Camera dataset manifest ID does not match its directory")
+    public_fields = ("source_dataset", "source_url", "license", "recorded_equipment_type",
+                     "source_waypoint", "synchronization", "thermal_format", "availability_error")
     return {"dataset_id": dataset_id, "data_origin": info.get("data_origin", "unspecified"),
             "asset_name": info.get("asset_name", dataset_id),
-            "description": info.get("description", "")}
+            "description": info.get("description", ""),
+            **{key: info[key] for key in public_fields if key in info}}
 
 
 @dataclass(frozen=True)

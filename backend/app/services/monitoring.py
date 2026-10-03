@@ -79,6 +79,10 @@ class PairEnvelope(BaseModel):
     images: PairImages
     dataset_id: str | None = None
     data_origin: str = "unspecified"
+    source_url: str | None = None
+    recorded_equipment_type: str | None = None
+    synchronization: dict | None = None
+    thermal_format: str | None = None
 
 
 async def acquire_images(source: MonitoringSource):
@@ -123,6 +127,8 @@ async def acquire_images(source: MonitoringSource):
         "pair_selected_at": pair.selected_at.isoformat(),
         "rgb_sha256": pair.images.rgb.sha256, "thermal_sha256": pair.images.thermal.sha256,
         "dataset_id": pair.dataset_id, "data_origin": pair.data_origin,
+        "source_url": pair.source_url, "recorded_equipment_type": pair.recorded_equipment_type,
+        "synchronization": pair.synchronization, "thermal_format": pair.thermal_format,
     }
 
 async def capture_source(source_id: str) -> str:
