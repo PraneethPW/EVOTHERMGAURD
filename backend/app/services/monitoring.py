@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import re
 from datetime import datetime, timedelta
 from typing import Literal
 from urllib.parse import urljoin, urlsplit
@@ -15,7 +16,7 @@ from app.models.entities import CaptureMode, ImageType, Inspection, InspectionEn
 from app.services.analysis import analysis_service
 from app.services.storage import save_image_bytes
 from app.services.weather import current_weather
-from app.services.paired_camera import PAIR_PROTOCOL, SOURCE_KIND
+from app.services.paired_camera import PAIR_PROTOCOL, SOURCE_KIND, DATASET_ID
 
 CAPTURE_INTERVAL_MINUTES = 10
 
@@ -26,13 +27,18 @@ def camera_url_identity(url: str) -> tuple:
             parsed.path.rstrip("/"), parsed.query)
 
 
+def paired_dataset_id(url: str) -> str | None:
+    match = re.search(r"/camera/datasets/([a-z0-9-]+)/pair$", urlsplit(url).path.rstrip("/"))
+    return match.group(1) if match and DATASET_ID.fullmatch(match.group(1)) else None
+
+
 def is_paired_source(rgb_url: str, thermal_url: str) -> bool:
     def paired_path(url):
-        return urlsplit(url).path.rstrip("/").endswith("/camera/pair")
+        return urlsplit(url).path.rstrip("/").endswith("/camera/pair") or paired_dataset_id(url) is not None
     if not (paired_path(rgb_url) or paired_path(thermal_url)):
         return False
     if camera_url_identity(rgb_url) != camera_url_identity(thermal_url):
-        raise ValueError("A paired camera source must use the same /camera/pair URL in both fields")
+        raise ValueError("A paired camera source must use the same dataset pair URL in both fields")
     return True
 
 
@@ -71,6 +77,8 @@ class PairEnvelope(BaseModel):
     pair_id: str = Field(pattern=r"^[A-Za-z0-9_-]+$", max_length=128)
     selected_at: datetime
     images: PairImages
+    dataset_id: str | None = None
+    data_origin: str = "unspecified"
 
 
 async def acquire_images(source: MonitoringSource):
@@ -90,6 +98,8 @@ async def acquire_images(source: MonitoringSource):
         pair = PairEnvelope.model_validate_json(data)
     except ValidationError as exc:
         raise ValueError("Invalid paired camera descriptor") from exc
+    if pair.dataset_id != paired_dataset_id(source.rgb_camera_url):
+        raise ValueError("Paired camera descriptor does not match the configured dataset")
 
     async def fetch_selected(modality: str):
         descriptor = getattr(pair.images, modality)
@@ -102,6 +112,7 @@ async def acquire_images(source: MonitoringSource):
         payload, image_response = await camera_response(url, "image/jpeg,image/png", settings.max_upload_bytes)
         if (image_response.headers.get("X-EvoThermGuard-Pair-ID") != pair.pair_id
                 or image_response.headers.get("X-EvoThermGuard-Modality") != modality
+                or (pair.dataset_id is not None and image_response.headers.get("X-EvoThermGuard-Dataset-ID") != pair.dataset_id)
                 or hashlib.sha256(payload).hexdigest() != descriptor.sha256):
             raise ValueError("Selected pair image identity or checksum does not match")
         return payload, image_response.headers.get("content-type", "application/octet-stream")
@@ -111,6 +122,7 @@ async def acquire_images(source: MonitoringSource):
         "source": SOURCE_KIND, "protocol": PAIR_PROTOCOL, "pair_id": pair.pair_id,
         "pair_selected_at": pair.selected_at.isoformat(),
         "rgb_sha256": pair.images.rgb.sha256, "thermal_sha256": pair.images.thermal.sha256,
+        "dataset_id": pair.dataset_id, "data_origin": pair.data_origin,
     }
 
 async def capture_source(source_id: str) -> str:
@@ -122,7 +134,8 @@ async def capture_source(source_id: str) -> str:
         db.add(inspection); await db.commit()
         try:
             weather,(rgb,thermal,pair_meta)=await asyncio.gather(current_weather(source.latitude,source.longitude),acquire_images(source))
-            notes = (f"Dataset-backed camera-feed simulation; pair {pair_meta['pair_id']}. "
+            notes = (f"Dataset-backed camera-feed simulation; dataset {pair_meta.get('dataset_id') or 'legacy'}; "
+                     f"origin {pair_meta.get('data_origin', 'unspecified')}; pair {pair_meta['pair_id']}. "
                      "Current station weather associated with simulation inspection time; not historical dataset weather."
                      if pair_meta else "Automatically associated with paired camera capture.")
             env=InspectionEnvironment(inspection_id=inspection.id,station_name=source.station_name,latitude=source.latitude,longitude=source.longitude,notes=notes,**weather)

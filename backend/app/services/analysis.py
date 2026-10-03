@@ -101,10 +101,13 @@ class InspectionAnalysisService:
             values,
         )
         source_metadata = by_type["RGB"].metadata_json
+        assessment_subject = inspection.equipment.equipment_name
         if source_metadata.get("source") == "dataset_backed_camera_simulation":
+            assessment_subject += " (dataset simulation)"
             result["evidence"]["capture_source"] = {
                 key: source_metadata[key] for key in
-                ("source", "pair_id", "pair_selected_at", "inspection_captured_at")
+                ("source", "pair_id", "pair_selected_at", "inspection_captured_at", "dataset_id", "data_origin")
+                if key in source_metadata
             }
         heatmap = result.pop("_gradcam_heatmap", None)
 
@@ -177,7 +180,7 @@ class InspectionAnalysisService:
                     severity=RiskLevel(risk),
                     message=(
                         f"{prefix}: {risk.replace('_', ' ').title()} assessment for "
-                        f"{inspection.equipment.equipment_name}. Inspect the highlighted region."
+                        f"{assessment_subject}. Inspect the highlighted region."
                     ),
                 )
             )
@@ -187,7 +190,7 @@ class InspectionAnalysisService:
         delivery = queue_risk_email(
             owner.email if owner else "",
             risk,
-            inspection.equipment.equipment_name,
+            assessment_subject,
             inspection.id,
         )
         prediction.explanation_metadata = {

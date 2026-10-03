@@ -1,0 +1,68 @@
+{
+  "dataset_id": "switchgear-sg-12",
+  "asset_name": "Main Switchgear SG-12",
+  "equipment_type": "Electrical Switchgear",
+  "data_origin": "synthetic",
+  "generator": "scripts/generate_camera_datasets.py",
+  "description": "Original procedural equipment illustrations and matching synthetic grayscale thermal intensity maps. Simulation only; not field photographs, measured temperatures, risk labels, or model training/validation data.",
+  "alignment": "Shared scene geometry, 640x480 pixel coordinates; no sensor calibration claimed.",
+  "pair_count": 4,
+  "pairs": [
+    {
+      "pair_id": "001",
+      "synthetic_hotspot_amplitude": 5,
+      "images": {
+        "rgb": {
+          "path": "Pair 001/RGB_001.png",
+          "sha256": "b4e052ed56b49e5bd7e22e8bb9e27461459d5a6b21ac7d953a8f62416dba0a8b"
+        },
+        "thermal": {
+          "path": "Pair 001/Thermal_001.png",
+          "sha256": "aaa7d4d0e6f8fa793af731ad7fd49b2cce2c185f7f8fcd1ffa7ba69110f6b364"
+        }
+      }
+    },
+    {
+      "pair_id": "002",
+      "synthetic_hotspot_amplitude": 80,
+      "images": {
+        "rgb": {
+          "path": "Pair 002/RGB_002.png",
+          "sha256": "e704ee75d79f0e25135ec049353a8e67f95d79ea90f4022235a95a17c532ce8b"
+        },
+        "thermal": {
+          "path": "Pair 002/Thermal_002.png",
+          "sha256": "bb0c0dbcf0ca7beda2a6c2609e32fac069e13f2f59c702fb5decd6fc0ff22f9a"
+        }
+      }
+    },
+    {
+      "pair_id": "003",
+      "synthetic_hotspot_amplitude": 155,
+      "images": {
+        "rgb": {
+          "path": "Pair 003/RGB_003.png",
+          "sha256": "e39e4156e4f4715bfbd1fe2c7149a3a529c6a7c603770ecc172301d5e5bb680d"
+        },
+        "thermal": {
+          "path": "Pair 003/Thermal_003.png",
+          "sha256": "f53dd775b7506f9fc3c1b97a50442e1c8c71faec7713f204d63799a33a2e3663"
+        }
+      }
+    },
+    {
+      "pair_id": "004",
+      "synthetic_hotspot_amplitude": 205,
+      "images": {
+        "rgb": {
+          "path": "Pair 004/RGB_004.png",
+          "sha256": "a49275d2b706eaae2fc2880bd2f43d10e643641c943e0ef518d6ce3e431f9472"
+        },
+        "thermal": {
+          "path": "Pair 004/Thermal_004.png",
+          "sha256": "22a3ae727d6cf478fa7f4d7830ee6c3276ff67928b1e26f40a7a327ca8aefcb3"
+        }
+      }
+    }
+  ]
+}

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     weather_api_url: str = "https://api.open-meteo.com/v1/forecast"
     camera_simulation_enabled: bool = False
     camera_dataset_path: str = "./dataset/camera"
+    camera_datasets_path: str = "./dataset/cameras"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

@@ -306,3 +306,85 @@ def test_cursor_migration_upgrade_downgrade_upgrade(tmp_path, monkeypatch):
     command.upgrade(config, "head")
     with sqlite3.connect(database) as db:
         assert db.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "b421dc54ea90"
+
+@pytest.mark.asyncio
+async def test_named_datasets_catalog_cursors_and_pipeline(simulation, monkeypatch):
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / "dataset/cameras"
+    monkeypatch.setattr(settings, "camera_datasets_path", str(root))
+    catalog = (await simulation.client.get("/camera/datasets")).json()["datasets"]
+    assert len(catalog) == 5
+    assert all(e["ready"] and e["pair_count"] == 4 and e["data_origin"] == "synthetic" for e in catalog)
+    await simulation.client.get("/camera/datasets")
+    for entry in catalog:
+        url = entry["pair_url"]
+        assert monitoring.is_paired_source(url, url)
+        for expected in ("001", "002", "003", "004", "001"):
+            pair = (await simulation.client.get(url)).json()
+            assert (pair["dataset_id"], pair["pair_id"]) == (entry["dataset_id"], expected)
+            for kind in ("rgb", "thermal"):
+                result = await simulation.client.get(pair["images"][kind]["url"])
+                assert result.headers["x-evothermguard-dataset-id"] == entry["dataset_id"]
+                assert hashlib.sha256(result.content).hexdigest() == pair["images"][kind]["sha256"]
+    async def weather(lat, lon):
+        return dict(ambient_temperature=28, humidity=55, weather="Clear", season="Summer", time_of_day="Morning", sun_exposure="Daylight")
+    monkeypatch.setattr(monitoring, "current_weather", weather)
+    async with simulation.sessions() as db:
+        db.add(User(id="named-user", name="Demo", email="named@example.test", password_hash="unused"))
+        for entry in catalog:
+            key = entry["dataset_id"]
+            db.add(Equipment(id=key, user_id="named-user", equipment_name=entry["asset_name"], equipment_type="Demo"))
+            db.add(MonitoringSource(id="source-"+key, user_id="named-user", equipment_id=key, station_name="Demo", latitude=12, longitude=79, rgb_camera_url=entry["pair_url"], thermal_camera_url=entry["pair_url"]))
+        await db.commit()
+    for entry in catalog:
+        key = entry["dataset_id"]
+        inspection_id = await monitoring.capture_source("source-"+key)
+        async with simulation.sessions() as db:
+            inspection = await db.get(Inspection, inspection_id)
+            assert inspection.status == "COMPLETED" and inspection.equipment_id == key
+            prediction = await db.scalar(select(Prediction).where(Prediction.inspection_id == inspection_id))
+            capture = prediction.explanation_metadata["capture_source"]
+            assert (capture["dataset_id"], capture["pair_id"], capture["data_origin"]) == (key, "001", "synthetic")
+            source = await db.get(MonitoringSource, "source-"+key)
+            assert source.next_capture_at-source.last_capture_at == timedelta(minutes=10)
+        manifest = json.loads((root/key/"dataset.json").read_text())
+        for pair, record in zip(dataset_pairs(key), manifest["pairs"]):
+            for kind in ("rgb", "thermal"):
+                assert hashlib.sha256(getattr(pair, kind).read_bytes()).hexdigest() == record["images"][kind]["sha256"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("corruption", ["descriptor_dataset", "image_dataset", "image_path"])
+async def test_cross_asset_substitution_is_rejected(simulation, monkeypatch, corruption):
+    import json
+    from pathlib import Path
+    monkeypatch.setattr(settings, "camera_datasets_path", str(Path(__file__).resolve().parents[1]/"dataset/cameras"))
+    url = "http://camera.test/camera/datasets/transformer-t-01/pair"
+    source = MonitoringSource(id="cross-asset", rgb_camera_url=url, thermal_camera_url=url)
+    original = monitoring.camera_response
+    async def substitute(url, accept, limit, headers=None):
+        data, response = await original(url, accept, limit, headers)
+        if accept == "application/json":
+            descriptor = json.loads(data)
+            if corruption == "descriptor_dataset":
+                descriptor["dataset_id"] = "motor-m-204"
+            elif corruption == "image_path":
+                descriptor["images"]["thermal"]["url"] = descriptor["images"]["thermal"]["url"].replace("transformer-t-01", "motor-m-204")
+            data = json.dumps(descriptor).encode()
+        elif corruption == "image_dataset":
+            response.headers["X-EvoThermGuard-Dataset-ID"] = "motor-m-204"
+        return data, response
+    monkeypatch.setattr(monitoring, "camera_response", substitute)
+    with pytest.raises(ValueError):
+        await monitoring.acquire_images(source)
+    assert simulation.requests.count("/camera/datasets/transformer-t-01/pair") == 1
+
+
+def test_named_dataset_paths_and_url_mismatch(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "camera_datasets_path", str(tmp_path))
+    for key in ("../outside", "UPPERCASE", "bad/slash", "a"*65):
+        with pytest.raises(ValueError, match="Invalid"):
+            dataset_pairs(key)
+    with pytest.raises(ValueError, match="same"):
+        monitoring.is_paired_source("https://camera.test/camera/datasets/transformer-t-01/pair", "https://camera.test/camera/datasets/motor-m-204/pair")

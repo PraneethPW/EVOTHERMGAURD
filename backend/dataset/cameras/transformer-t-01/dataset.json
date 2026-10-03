@@ -1,0 +1,68 @@
+{
+  "dataset_id": "transformer-t-01",
+  "asset_name": "Transformer T-01",
+  "equipment_type": "Distribution Transformer",
+  "data_origin": "synthetic",
+  "generator": "scripts/generate_camera_datasets.py",
+  "description": "Original procedural equipment illustrations and matching synthetic grayscale thermal intensity maps. Simulation only; not field photographs, measured temperatures, risk labels, or model training/validation data.",
+  "alignment": "Shared scene geometry, 640x480 pixel coordinates; no sensor calibration claimed.",
+  "pair_count": 4,
+  "pairs": [
+    {
+      "pair_id": "001",
+      "synthetic_hotspot_amplitude": 5,
+      "images": {
+        "rgb": {
+          "path": "Pair 001/RGB_001.png",
+          "sha256": "d34fddda246927e3e28161eacc90cd441e782e9a08bb7e6682e1ec132b234373"
+        },
+        "thermal": {
+          "path": "Pair 001/Thermal_001.png",
+          "sha256": "087310017370c2fe8c39e194f4d43bc4063f75ce1986ae69076756765129de6e"
+        }
+      }
+    },
+    {
+      "pair_id": "002",
+      "synthetic_hotspot_amplitude": 80,
+      "images": {
+        "rgb": {
+          "path": "Pair 002/RGB_002.png",
+          "sha256": "032daa6aeb9692b3fc60cf62a94c93019a3f5d8717c3b022167b1f08cf97d1b8"
+        },
+        "thermal": {
+          "path": "Pair 002/Thermal_002.png",
+          "sha256": "036451522c90af79116623922f8a3e357d5f5b54c1bab4958a4b3b59dc346b7b"
+        }
+      }
+    },
+    {
+      "pair_id": "003",
+      "synthetic_hotspot_amplitude": 155,
+      "images": {
+        "rgb": {
+          "path": "Pair 003/RGB_003.png",
+          "sha256": "45027c7609cd81c89d58e0f735ab090d9835abda4c65a4533bf3c29ec4ade5bb"
+        },
+        "thermal": {
+          "path": "Pair 003/Thermal_003.png",
+          "sha256": "f71b33696f474d6aef0f2ee896133462365d47a8cbae8c12d2708b74ed7ec837"
+        }
+      }
+    },
+    {
+      "pair_id": "004",
+      "synthetic_hotspot_amplitude": 205,
+      "images": {
+        "rgb": {
+          "path": "Pair 004/RGB_004.png",
+          "sha256": "4454d7513f166fb471efacf4741c1679e1913c26f4833345fa429919068a3aa4"
+        },
+        "thermal": {
+          "path": "Pair 004/Thermal_004.png",
+          "sha256": "b8d291ae6ca68e85d26d5359cb3d28aa47d9168770722b58031c036fa42f39b1"
+        }
+      }
+    }
+  ]
+}
