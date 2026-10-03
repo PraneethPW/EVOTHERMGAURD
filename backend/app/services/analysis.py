@@ -100,6 +100,12 @@ class InspectionAnalysisService:
             Path(by_type["THERMAL"].file_path),
             values,
         )
+        source_metadata = by_type["RGB"].metadata_json
+        if source_metadata.get("source") == "dataset_backed_camera_simulation":
+            result["evidence"]["capture_source"] = {
+                key: source_metadata[key] for key in
+                ("source", "pair_id", "pair_selected_at", "inspection_captured_at")
+            }
         heatmap = result.pop("_gradcam_heatmap", None)
 
         self.stage(inspection.id, "inference", "complete")

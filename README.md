@@ -113,6 +113,14 @@ Open `http://localhost:5173`; API health is available at `http://localhost:8000/
 
 ## Dataset and real model workflow
 
+### Dataset-backed camera-feed simulation
+
+The backend supports one paired transformer dataset as a simulated camera source without changing either camera URL field or the UI design. Enable `CAMERA_SIMULATION_ENABLED=true`, set `CAMERA_DATASET_PATH` to your dataset directory, and run `alembic upgrade head`. Enter the same backend URL, `https://<backend-host>/camera/pair`, in both camera fields.
+
+Each capture calls the JSON pair endpoint once and acquires both immutable image URLs for the selected pair ID. Checksums/identity validation prevents mixing modalities. A persistent database cursor advances sequentially per monitoring source, wraps at the dataset end, and survives restarts. The existing ten-minute scheduler then runs validation, preprocessing, registration, fusion, analysis, and alerts with current station weather. Capture metadata explicitly identifies simulation; the weather describes the simulation inspection time, not the original dataset capture time.
+
+Place matching `RGB_001.jpg` / `Thermal_001.jpg` files in the same directory (flat or `Pair 001/` folders). IDs must be unique and complete; no transformer images are bundled. Use one equipment/scene per configured dataset. See [dataset camera setup](backend/dataset/camera/README.md) for naming, endpoint protocol, deployment, and cursor behavior. The feature is disabled by default. Separate real JPEG/PNG camera endpoints remain supported.
+
 The application never treats operator-entered weather values as a separate dataset. Every row represents one labelled paired observation: RGB + thermal + its associated environmental context. Copy `backend/dataset/manifest.example.csv` to `backend/dataset/manifest.csv`, then add real field evidence and these required fields:
 
 `sample_id,rgb_path,thermal_path,ambient_temperature,humidity,weather,season,time_of_day,sun_exposure,label,split`

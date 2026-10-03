@@ -7,6 +7,10 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 def uid(): return str(uuid.uuid4())
 def now(): return datetime.utcnow()
 class Base(DeclarativeBase): pass
+class CameraSimulationCursor(Base):
+    __tablename__ = "camera_simulation_cursors"
+    scope: Mapped[str] = mapped_column(String(64), primary_key=True)
+    position: Mapped[int] = mapped_column(default=0)
 class RiskLevel(str, enum.Enum): NORMAL="NORMAL"; WARNING="WARNING"; HIGH_RISK="HIGH_RISK"; CRITICAL="CRITICAL"
 class ImageType(str, enum.Enum): RGB="RGB"; THERMAL="THERMAL"; FUSED="FUSED"; GRADCAM="GRADCAM"
 class CaptureMode(str, enum.Enum): MANUAL="MANUAL"; AUTOMATIC="AUTOMATIC"
