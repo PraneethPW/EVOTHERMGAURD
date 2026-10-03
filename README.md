@@ -17,7 +17,7 @@ EvoThermGuard is a full-stack, decision-support platform for automatic thermal m
 - A strict labelled manifest contract with train/validation/test splits, four risk labels, optional localization masks, file validation, and reproducible experiment artifacts.
 - Held-out accuracy, macro precision/recall/F1, multiclass ROC-AUC, confusion matrix, and mask-based localization IoU/Dice where labels permit.
 - Opt-in NSGA-II hyperparameter search using validation F1 and validation loss as its two objectives; the test split is never an optimization objective.
-- The deterministic `baseline-heuristic-v1` remains available as the comparison and runtime fallback until a genuine checkpoint is supplied.
+- The deterministic `baseline-heuristic-v1` remains available in explicit demo mode for comparison until a genuine checkpoint is supplied; trained-model failures never silently switch to this baseline.
 - Tiered notifications: Normal creates no alert, Warning creates a dashboard warning, High Risk creates dashboard + email, and Critical creates a prominent dashboard alert + email. Email delivery activates only when SMTP is configured.
 - OpenRouter integration only for narrative explanation. It gets structured inspection data and fails safely to deterministic language; inference never waits on it.
 - React command-center UI with responsive layout, mobile dock, evidence grid and scientific positioning.
@@ -61,13 +61,12 @@ EvoThermGuard/
 
 ## Local setup
 
-1. Copy `.env.example` to `.env` and configure `DATABASE_URL` for Neon PostgreSQL. The checked-in development fallback is SQLite only for local exploration.
+1. Copy `backend/.env.example` to `backend/.env` and configure `DATABASE_URL` for your development database and `JWT_SECRET`. The checked-in development fallback is SQLite only for local exploration. Run backend commands from the `backend` folder so this environment file and relative dataset paths resolve correctly.
 2. Create and activate a Python 3.11 environment, then install backend dependencies:
 
    ```bash
    cd backend
    pip install -r requirements.txt
-   alembic revision --autogenerate -m "initial schema"
    alembic upgrade head
    uvicorn app.main:app --reload
    ```
@@ -81,6 +80,69 @@ EvoThermGuard/
    ```
 
 Open `http://localhost:5173`; API health is available at `http://localhost:8000/health` and `http://localhost:8000/api/v1/health`.
+
+### Using and testing camera feeds on localhost
+
+You can run the app locally and use either the hosted camera URLs or the bundled local datasets. In both cases, enter the **same pair endpoint in the RGB camera snapshot URL and Thermal camera snapshot URL fields**. Grey example text is a placeholder; both fields must contain an actual URL.
+
+Create `frontend/.env` with:
+
+```env
+VITE_API_URL=http://localhost:8000/api/v1
+```
+
+Set `FRONTEND_URL=http://localhost:5173` in `backend/.env`. Restart the frontend and backend after changing their environment files.
+
+#### Option 1: Local app with hosted dataset URLs
+
+Your local backend can fetch matching image pairs from the deployed Railway service. Internet access is required. You do not need to enable the local camera simulation endpoint for this option.
+
+| Select this asset | Paste this URL into both camera fields |
+| --- | --- |
+| Feeder Motor M-204 | `https://evothermgaurd-production.up.railway.app/camera/datasets/motor-m-204/pair` |
+| Transformer T-01 | `https://evothermgaurd-production.up.railway.app/camera/datasets/transformer-t-01/pair` |
+| Main Switchgear SG-12 | `https://evothermgaurd-production.up.railway.app/camera/datasets/switchgear-sg-12/pair` |
+
+#### Option 2: Local app with locally served datasets
+
+Use the bundled images in `backend/dataset/cameras`. Add or update these settings in `backend/.env`:
+
+```env
+CAMERA_SIMULATION_ENABLED=true
+CAMERA_DATASETS_PATH=./dataset/cameras
+CAMERA_PUBLIC_BASE_URL=http://localhost:8000
+```
+
+Start the backend from `backend` after running `alembic upgrade head`. These examples assume Uvicorn uses port 8000:
+
+| Select this asset | Paste this URL into both camera fields |
+| --- | --- |
+| Feeder Motor M-204 | `http://localhost:8000/camera/datasets/motor-m-204/pair` |
+| Transformer T-01 | `http://localhost:8000/camera/datasets/transformer-t-01/pair` |
+| Main Switchgear SG-12 | `http://localhost:8000/camera/datasets/switchgear-sg-12/pair` |
+
+Open `http://localhost:8000/camera/datasets` to check feed readiness. Opening a pair endpoint returns JSON containing the pair ID and both image URLs; this is expected. If you change the backend port, update the frontend API URL, camera base URL and camera fields together. Local image replay still fetches current weather through Open-Meteo, which requires internet access.
+
+#### Manual workflow check
+
+1. Open `http://localhost:5173`, sign in or create an account, then go to **Live Monitoring**.
+2. Select an available asset, enter a station name and latitude/longitude, and paste its corresponding pair URL into **both** camera fields.
+3. Enable **automatic ten-minute monitoring** and click **Save monitoring setup**.
+4. Click **Capture now**. The completed inspection should show RGB, thermal and fused evidence, baseline thermal saliency, environmental context and a risk result.
+5. Return to Live Monitoring and capture again to obtain the next pair. Each installed feed contains four pairs, then repeats; different pairs may produce the same risk category.
+6. Leave monitoring enabled and the backend running. Check **Inspections** after the displayed next-capture time for the next automatic inspection. Use **Pause** to stop scheduled captures.
+
+Pump P-07 and Generator G-03 feeds are unavailable and return 503. The available feeds replay real archived recordings; they are not live station cameras. The transformer recording is an instrument/current transformer, and the switchgear recording shows a cabinet exterior. Risk results remain unvalidated demo outputs; displayed confidence is not measured prediction accuracy.
+
+#### Automated backend tests
+
+With the backend requirements installed, run this from `backend`:
+
+```bash
+python -m pytest tests -q
+```
+
+Tests create temporary fixtures and test databases or mock external requests. They do not require the hosted camera URLs or a running local server. Fixture images exercise software behavior and are not evidence of model accuracy. Install the full `backend/requirements.txt`, including PyTorch and torchvision, before running the complete suite.
 
 ## Configuration
 
