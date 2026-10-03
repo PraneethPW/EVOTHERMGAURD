@@ -388,3 +388,16 @@ def test_named_dataset_paths_and_url_mismatch(monkeypatch, tmp_path):
             dataset_pairs(key)
     with pytest.raises(ValueError, match="same"):
         monitoring.is_paired_source("https://camera.test/camera/datasets/transformer-t-01/pair", "https://camera.test/camera/datasets/motor-m-204/pair")
+
+@pytest.mark.asyncio
+async def test_proxy_uses_explicit_https_public_origin(simulation, monkeypatch):
+    from pathlib import Path
+    monkeypatch.setattr(settings, "camera_public_base_url", "https://camera.test")
+    monkeypatch.setattr(settings, "camera_datasets_path", str(Path(__file__).resolve().parents[1]/"dataset/cameras"))
+    entry = (await simulation.client.get('/camera/datasets')).json()['datasets'][0]
+    assert entry['pair_url'].startswith('https://camera.test/')
+    pair = (await simulation.client.get(entry['pair_url'])).json()
+    assert all(im['url'].startswith('https://camera.test/') for im in pair['images'].values())
+    source = MonitoringSource(id='proxy-source', rgb_camera_url=entry['pair_url'], thermal_camera_url=entry['pair_url'])
+    rgb, thermal, meta = await monitoring.acquire_images(source)
+    assert meta['dataset_id'] == entry['dataset_id'] and meta['pair_id'] == '001'

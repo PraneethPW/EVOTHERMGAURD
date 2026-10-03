@@ -19,6 +19,15 @@ router = APIRouter(prefix="/camera", tags=["Dataset camera simulation"])
 NO_CACHE = {"Cache-Control": "no-store"}
 
 
+def camera_url(request: Request, route: str, **parameters) -> str:
+    url = request.url_for(route, **parameters)
+    # TLS-terminating proxies may present HTTP to the application. Use the
+    # configured public origin rather than generating insecure image links.
+    if settings.camera_public_base_url:
+        return settings.camera_public_base_url.rstrip("/") + url.path
+    return str(url)
+
+
 def require_simulation():
     if not settings.camera_simulation_enabled:
         raise HTTPException(404, "Dataset camera simulation is disabled")
@@ -43,7 +52,7 @@ async def camera_datasets(request: Request, response: Response):
         return entries
     entries = await asyncio.to_thread(catalog)
     for entry in entries:
-        entry["pair_url"] = str(request.url_for("dataset_camera_pair", dataset_id=entry["dataset_id"]))
+        entry["pair_url"] = camera_url(request, "dataset_camera_pair", dataset_id=entry["dataset_id"])
     response.headers.update(NO_CACHE)
     return {"source_kind": SOURCE_KIND, "datasets": entries}
 
@@ -68,7 +77,7 @@ async def pair_descriptor(request, response, db, stream, dataset_id=None):
         "selected_at": datetime.now(timezone.utc).isoformat(),
         "images": {
             kind: {
-                "url": str(request.url_for(route, **arguments, pair_id=pair.pair_id, modality=kind)),
+                "url": camera_url(request, route, **arguments, pair_id=pair.pair_id, modality=kind),
                 "sha256": hashlib.sha256(payload[0]).hexdigest(),
             }
             for kind, payload in (("rgb", rgb), ("thermal", thermal))

@@ -21,3 +21,5 @@ Every inspection fetches one JSON selection, then two pinned image URLs from tha
 Each dataset has `dataset.json` with provenance and image hashes. The source generator `scripts/generate_camera_datasets.py` reproduces the datasets, refusing to overwrite existing directories. New custom assets can use a directory slug such as `transformer-t-02` and matching RGB/Thermal filenames. Pair IDs are unique within a dataset and may repeat across different assets. The old `/camera/pair` still reads the separate legacy `CAMERA_DATASET_PATH` directory.
 
 Synthetic files are bundled in the deployment image and persist across redeploys. Selection cursors are stored in PostgreSQL. Inspection evidence still uses the configured storage system; the existing ephemeral-storage limitation applies on Railway unless durable storage is configured.
+
+On Railway or another TLS-terminating proxy, set `CAMERA_PUBLIC_BASE_URL` to the public HTTPS backend origin (without `/api/v1`), so generated pair and image URLs retain HTTPS.

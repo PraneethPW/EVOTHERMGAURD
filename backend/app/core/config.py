@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     camera_simulation_enabled: bool = False
     camera_dataset_path: str = "./dataset/camera"
     camera_datasets_path: str = "./dataset/cameras"
+    camera_public_base_url: str = ""
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
